@@ -46,9 +46,17 @@
       </div>
     </nav>
 
+    <!-- Floating Assign Worker Button -->
+    <button id="floating-assign-btn" class="floating-assign-btn" title="Назначить исполнителя">
+      👷‍♂️ Назначить
+    </button>
+
     <div class="admin-layout">
       <!-- Сайдбар навигации -->
-      <aside class="admin-sidebar">
+      <aside class="admin-sidebar" id="adminSidebar">
+        <div class="sidebar-toggle" id="sidebarToggle">
+          <span class="toggle-icon">«</span>
+        </div>
         <div class="admin-profile">
           <div class="admin-avatar">👩‍💼</div>
           <div class="admin-info">
@@ -109,7 +117,7 @@
               <option>Последние 30 дней</option>
               <option>Этот месяц</option>
             </select>
-            <button class="btn btn-outline btn-small">📥 Экспорт</button>
+            <button class="btn btn-outline btn-small" onclick="exportData()">📥 Экспорт</button>
           </div>
         </div>
 
@@ -151,21 +159,65 @@
             </div>
           </div>
 
-          <!-- Графики -->
+          <!-- График категорий -->
           <div class="charts-row">
-            <div class="chart-card">
-              <h3>📈 Динамика заявок</h3>
-              <canvas
-                id="chart-timeline"
-                style="width: 100%; height: 300px"
-              ></canvas>
+            <div class="chart-card" style="grid-column: 1 / -1;">
+              <h3>📊 Категории заявок</h3>
+              <img 
+                id="chart-categories-img"
+                src="https://quickchart.io/chart?width=600&height=400&chart=%7B%22type%22%3A%22bar%22%2C%22data%22%3A%7B%22labels%22%3A%5B%22%D0%9E%D1%81%D0%B2%D0%B5%D1%89%D0%B5%D0%BD%D0%B8%D0%B5%22%2C%22%D0%94%D0%BE%D1%80%D0%BE%D0%B3%D0%B8%22%2C%22%D0%9C%D1%83%D1%81%D0%BE%D1%80%22%2C%22%D0%94%D1%80%D1%83%D0%B3%D0%BE%D0%B5%22%5D%2C%22datasets%22%3A%5B%7B%22label%22%3A%22%D0%9A%D0%BE%D0%BB%D0%B8%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%BE%20%D0%B7%D0%B0%D1%8F%D0%B2%D0%BE%D0%BA%22%2C%22data%22%3A%5B234%2C678%2C456%2C155%5D%2C%22backgroundColor%22%3A%5B%22%233e95cd%22%2C%22%238e5ea2%22%2C%22%233cba9f%22%2C%22%23e8c3b9%22%5D%7D%5D%7D%2C%22options%22%3A%7B%22plugins%22%3A%7B%22title%22%3A%7B%22display%22%3Atrue%2C%22text%22%3A%22%D0%97%D0%B0%D1%8F%D0%B2%D0%BA%D0%B8%20%D0%BF%D0%BE%20%D0%BA%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0%B8%D1%8F%D0%BC%22%7D%2C%22legend%22%3A%7B%22display%22%3Atrue%7D%7D%2C%22scales%22%3A%7B%22y%22%3A%7B%22beginAtZero%22%3Atrue%2C%22max%22%3A800%2C%22ticks%22%3A%7B%22stepSize%22%3A200%7D%7D%7D%7D%7D"
+                alt="График категорий заявок"
+                style="width: 100%; height: 300px;"
+              >
             </div>
-            <div class="chart-card">
-              <h3>🥧 Категории заявок</h3>
-              <canvas
-                id="chart-categories"
-                style="width: 100%; height: 300px"
-              ></canvas>
+          </div>
+        </section>
+
+        <!-- Секция аналитики -->
+        <section id="analytics-section" style="display: none">
+          <div class="table-card">
+            <h3>📈 Аналитика и отчеты</h3>
+            <div class="analytics-content">
+              <div class="kpi-grid">
+                <div class="kpi-card">
+                  <div class="kpi-icon blue">📊</div>
+                  <div class="kpi-content">
+                    <span class="kpi-label">Обработано заявок</span>
+                    <span class="kpi-value">1,247</span>
+                    <span class="kpi-trend positive">↑ 12%</span>
+                  </div>
+                </div>
+                <div class="kpi-card">
+                  <div class="kpi-icon green">✅</div>
+                  <div class="kpi-content">
+                    <span class="kpi-label">Выполнено успешно</span>
+                    <span class="kpi-value">1,189</span>
+                    <span class="kpi-trend positive">↑ 8%</span>
+                  </div>
+                </div>
+                <div class="kpi-card">
+                  <div class="kpi-icon yellow">⏱️</div>
+                  <div class="kpi-content">
+                    <span class="kpi-label">Среднее время</span>
+                    <span class="kpi-value">18.5 ч</span>
+                    <span class="kpi-trend">↘ 1.2ч</span>
+                  </div>
+                </div>
+                <div class="kpi-card">
+                  <div class="kpi-icon red">🎯</div>
+                  <div class="kpi-content">
+                    <span class="kpi-label">Удовлетворенность</span>
+                    <span class="kpi-value">94%</span>
+                    <span class="kpi-trend positive">↑ 5%</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- График эффективности -->
+              <div class="chart-card">
+                <h3>📊 Эффективность по категориям</h3>
+                <img id="analytics-performance-img" src="https://quickchart.io/chart?width=600&height=400&chart=%7B%22type%22%3A%22bar%22%2C%22data%22%3A%7B%22labels%22%3A%5B%22%D0%9E%D1%81%D0%B2%D0%B5%D1%89%D0%B5%D0%BD%D0%B8%D0%B5%22%2C%22%D0%94%D0%BE%D1%80%D0%BE%D0%B3%D0%B8%22%2C%22%D0%9C%D1%83%D1%81%D0%BE%D1%80%22%2C%22%D0%97%D0%B5%D0%BB%D0%B5%D0%BD%D1%8B%D0%B5%20%D0%BD%D0%B0%D1%81%D0%B0%D0%B6%D0%B4%D0%B5%D0%BD%D0%B8%D1%8F%22%2C%22%D0%94%D1%80%D1%83%D0%B3%D0%BE%D0%B5%22%5D%2C%22datasets%22%3A%5B%7B%22label%22%3A%22%D0%92%D1%8B%D0%BF%D0%BE%D0%BB%D0%BD%D0%B5%D0%BD%D0%BE%20%D0%B7%D0%B0%D1%8F%D0%B2%D0%BE%D0%BA%22%2C%22data%22%3A%5B234%2C456%2C321%2C156%2C80%5D%2C%22backgroundColor%22%3A%5B%22rgba(59%2C130%2C246%2C0.7)%22%2C%22rgba(245%2C158%2C11%2C0.7)%22%2C%22rgba(16%2C185%2C129%2C0.7)%22%2C%22rgba(16%2C185%2C129%2C0.7)%22%2C%22rgba(139%2C92%2C246%2C0.7)%22%5D%7D%2C%7B%22label%22%3A%22%D0%A1%D1%80%D0%B5%D0%B4%D0%BD%D0%B5%D0%B5%20%D0%B2%D1%80%D0%B5%D0%BC%D1%8F%20%D0%B2%D1%8B%D0%BF%D0%BE%D0%BB%D0%BD%D0%B5%D0%BD%D0%B8%D1%8F%20(%D1%87%D0%B0%D1%81%D1%8B)%22%2C%22data%22%3A%5B12.5%2C22.3%2C18.7%2C15.2%2C25.1%5D%2C%22type%22%3A%22line%22%2C%22borderColor%22%3A%22rgb(239%2C68%2C68)%22%2C%22backgroundColor%22%3A%22rgba(239%2C68%2C68%2C0.5)%22%2C%22fill%22%3Afalse%7D%5D%7D%2C%22options%22%3A%7B%22plugins%22%3A%7B%22title%22%3A%7B%22display%22%3Atrue%2C%22text%22%3A%22%D0%AD%D1%84%D1%84%D0%B5%D0%BA%D1%82%D0%B8%D0%B2%D0%BD%D0%BE%D1%81%D1%82%D1%8C%20%D0%BF%D0%BE%20%D0%BA%D0%B0%D1%82%D0%B5%D0%B3%D0%BE%D1%80%D0%B8%D1%8F%D0%BC%20%D0%B7%D0%B0%D1%8F%D0%B2%D0%BE%D0%BA%22%7D%2C%22legend%22%3A%7B%22position%22%3A%22top%22%7D%7D%2C%22scales%22%3A%7B%22y%22%3A%7B%22beginAtZero%22%3Atrue%2C%22title%22%3A%7B%22display%22%3Atrue%2C%22text%22%3A%22%D0%9A%D0%BE%D0%BB%D0%B8%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%BE%22%7D%7D%7D%7D%7D" alt="График эффективности" style="width: 100%; height: 300px;">
+              </div>
             </div>
           </div>
         </section>

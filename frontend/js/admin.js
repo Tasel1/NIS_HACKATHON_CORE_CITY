@@ -5,6 +5,7 @@ let requestsData = [];
 let workersData = [];
 let timelineChart = null;
 let categoriesChart = null;
+let analyticsChart = null;
 let hotspotMap = null;
 let currentSortColumn = "id";
 let currentSortDirection = "asc";
@@ -18,6 +19,8 @@ function initAdminPage() {
   loadWorkers();
   initHotspotMap();
   initNavigation();
+  initSidebarToggle();
+  initFloatingAssignButton();
 }
 
 /**
@@ -77,103 +80,130 @@ function hideSkeletons() {
  * @param {object} data - Данные для графиков
  */
 function renderCharts(data) {
-  // График динамики заявок (линейный)
-  const timelineCtx = document
-    .getElementById("chart-timeline")
-    .getContext("2d");
+  // Графики теперь отображаются как статические изображения
+  // Обновляем src изображений с актуальными данными
+  updateStaticCharts(data);
+}
 
-  if (timelineChart) {
-    timelineChart.destroy();
+/**
+ * Обновление статических графиков с новыми данными
+ * @param {object} data - Данные для графиков
+ */
+function updateStaticCharts(data) {
+  // Обновляем изображение графика категорий
+  const categoryImg = document.getElementById('chart-categories-img');
+  if (categoryImg) {
+    const lighting = data.requests_by_category.lighting;
+    const pothole = data.requests_by_category.pothole;
+    const garbage = data.requests_by_category.garbage;
+    const other = data.requests_by_category.other;
+    
+    const maxVal = Math.max(lighting, pothole, garbage, other);
+    const maxY = Math.ceil(maxVal * 1.2);
+    
+    // Создаем объект конфигурации диаграммы
+    const chartConfig = {
+      type: 'bar',
+      data: {
+        labels: ['Освещение', 'Дороги', 'Мусор', 'Другое'],
+        datasets: [{
+          label: 'Количество заявок',
+          data: [lighting, pothole, garbage, other],
+          backgroundColor: ['#3e95cd', '#8e5ea2', '#3cba9f', '#e8c3b9']
+        }]
+      },
+      options: {
+        plugins: {
+          title: {
+            display: true,
+            text: 'Заявки по категориям'
+          },
+          legend: {
+            display: true
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: maxY,
+            ticks: {
+              stepSize: Math.ceil(maxY/5)
+            }
+          }
+        }
+      }
+    };
+    
+    // Кодируем конфигурацию в формат URL
+    const configJson = JSON.stringify(chartConfig);
+    const encodedConfig = encodeURIComponent(configJson);
+    
+    categoryImg.src = `https://quickchart.io/chart?width=600&height=400&chart=${encodedConfig}`;
   }
-
-  timelineChart = new Chart(timelineCtx, {
-    type: "line",
-    data: {
-      labels: data.last_7_days.map((d) => d.date),
-      datasets: [
-        {
-          label: "Новые заявки",
-          data: data.last_7_days.map((d) => d.count),
-          borderColor: "#2563EB",
-          backgroundColor: "rgba(37, 99, 235, 0.1)",
-          borderWidth: 3,
-          tension: 0.3,
-          fill: true,
-          pointBackgroundColor: "#2563EB",
-          pointBorderColor: "white",
-          pointBorderWidth: 2,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: false,
-        },
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          grid: {
-            color: "rgba(0,0,0,0.05)",
+  
+  // Обновляем изображение графика аналитики
+  const analyticsImg = document.getElementById('analytics-performance-img');
+  if (analyticsImg) {
+    const lighting = data.requests_by_category.lighting;
+    const pothole = data.requests_by_category.pothole;
+    const garbage = data.requests_by_category.garbage;
+    const other = data.requests_by_category.other;
+    
+    // Создаем объект конфигурации диаграммы для аналитики
+    const analyticsConfig = {
+      type: 'bar',
+      data: {
+        labels: ['Освещение', 'Дороги', 'Мусор', 'Зеленые насаждения', 'Другое'],
+        datasets: [
+          {
+            label: 'Выполнено заявок',
+            data: [lighting, pothole, garbage, 156, other],
+            backgroundColor: [
+              'rgba(59,130,246,0.7)',
+              'rgba(245,158,11,0.7)',
+              'rgba(16,185,129,0.7)',
+              'rgba(16,185,129,0.7)',
+              'rgba(139,92,246,0.7)'
+            ]
           },
-        },
-        x: {
-          grid: {
-            display: false,
-          },
-        },
+          {
+            label: 'Среднее время выполнения (часы)',
+            data: [12.5, 22.3, 18.7, 15.2, 25.1],
+            type: 'line',
+            borderColor: 'rgb(239,68,68)',
+            backgroundColor: 'rgba(239,68,68,0.5)',
+            fill: false
+          }
+        ]
       },
-    },
-  });
-
-  // График категорий (круговая диаграмма)
-  const categoriesCtx = document
-    .getElementById("chart-categories")
-    .getContext("2d");
-
-  if (categoriesChart) {
-    categoriesChart.destroy();
+      options: {
+        plugins: {
+          title: {
+            display: true,
+            text: 'Эффективность по категориям заявок'
+          },
+          legend: {
+            position: 'top'
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Количество'
+            }
+          }
+        }
+      }
+    };
+    
+    // Кодируем конфигурацию в формат URL
+    const analyticsJson = JSON.stringify(analyticsConfig);
+    const encodedAnalytics = encodeURIComponent(analyticsJson);
+    
+    analyticsImg.src = `https://quickchart.io/chart?width=600&height=400&chart=${encodedAnalytics}`;
   }
-
-  categoriesChart = new Chart(categoriesCtx, {
-    type: "doughnut",
-    data: {
-      labels: ["Освещение", "Дороги", "Мусор", "Другое"],
-      datasets: [
-        {
-          data: [
-            data.requests_by_category.lighting,
-            data.requests_by_category.pothole,
-            data.requests_by_category.garbage,
-            data.requests_by_category.other,
-          ],
-          backgroundColor: ["#2563EB", "#F59E0B", "#10B981", "#8B5CF6"],
-          borderWidth: 0,
-          hoverOffset: 8,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: "bottom",
-          labels: {
-            usePointStyle: true,
-            pointStyle: "circle",
-            padding: 20,
-          },
-        },
-      },
-      cutout: "70%",
-    },
-  });
 }
 
 /**
@@ -276,6 +306,14 @@ async function loadRequests() {
     requestsData = getMockRequests();
 
     renderRequestsTable(requestsData);
+    
+    // Сброс фильтров к начальному состоянию
+    if (document.getElementById('requestStatusFilter')) {
+      document.getElementById('requestStatusFilter').value = '';
+    }
+    if (document.getElementById('requestCategoryFilter')) {
+      document.getElementById('requestCategoryFilter').value = '';
+    }
   } catch (error) {
     console.error("Error loading requests:", error);
     tbody.innerHTML =
@@ -548,6 +586,7 @@ function initNavigation() {
       document.getElementById("map-section").style.display = "none";
       document.getElementById("requests-section").style.display = "none";
       document.getElementById("workers-section").style.display = "none";
+      document.getElementById("analytics-section").style.display = "none";
 
       // Показываем нужную секцию
       const section = this.dataset.section;
@@ -561,10 +600,302 @@ function initNavigation() {
         }, 100);
       } else if (section === "requests") {
         document.getElementById("requests-section").style.display = "block";
+        // Инициализируем фильтры для заявок
+        initRequestFilters();
       } else if (section === "workers") {
         document.getElementById("workers-section").style.display = "block";
+      } else if (section === "analytics") {
+        // Сначала скрываем все другие секции
+        document.getElementById("dashboard-section").style.display = "none";
+        document.getElementById("map-section").style.display = "none";
+        document.getElementById("requests-section").style.display = "none";
+        document.getElementById("workers-section").style.display = "none";
+        
+        // Показываем только секцию аналитики
+        document.getElementById("analytics-section").style.display = "block";
+        // Статические изображения графиков обновляются через updateStaticCharts
       }
     });
+  });
+}
+
+/**
+ * Инициализация сворачивания сайдбара
+ */
+function initSidebarToggle() {
+  const sidebar = document.getElementById('adminSidebar');
+  const sidebarToggle = document.getElementById('sidebarToggle');
+  const mainContent = document.querySelector('.admin-main');
+  
+  if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', function() {
+      sidebar.classList.toggle('collapsed');
+      mainContent.classList.toggle('sidebar-collapsed');
+      
+      // Обновляем иконку
+      const icon = this.querySelector('.toggle-icon');
+      if (sidebar.classList.contains('collapsed')) {
+        icon.textContent = '»';
+      } else {
+        icon.textContent = '«';
+      }
+    });
+  }
+}
+
+/**
+ * Инициализация плавающей кнопки назначения исполнителя
+ */
+function initFloatingAssignButton() {
+  const floatingBtn = document.getElementById('floating-assign-btn');
+
+  if (floatingBtn) {
+    floatingBtn.addEventListener('click', function() {
+      // Показываем модальное окно выбора заявки для назначения
+      showRequestSelectionModal();
+    });
+  }
+}
+
+/**
+ * Инициализация фильтров для заявок
+ */
+function initRequestFilters() {
+  // Добавляем обработчики для фильтров
+  const statusFilter = document.getElementById('requestStatusFilter');
+  const categoryFilter = document.getElementById('requestCategoryFilter');
+
+  if (statusFilter) {
+    statusFilter.addEventListener('change', function() {
+      applyRequestFilters();
+    });
+  }
+
+  if (categoryFilter) {
+    categoryFilter.addEventListener('change', function() {
+      applyRequestFilters();
+    });
+  }
+}
+
+/**
+ * Применить фильтры к заявкам
+ */
+function applyRequestFilters() {
+  const statusFilter = document.getElementById('requestStatusFilter').value;
+  const categoryFilter = document.getElementById('requestCategoryFilter').value;
+
+  let filteredRequests = [...requestsData];
+
+  // Фильтрация по статусу
+  if (statusFilter) {
+    filteredRequests = filteredRequests.filter(request => 
+      !statusFilter || request.status === statusFilter
+    );
+  }
+
+  // Фильтрация по категории
+  if (categoryFilter) {
+    filteredRequests = filteredRequests.filter(request => 
+      !categoryFilter || request.category === categoryFilter
+    );
+  }
+
+  // Рендерим отфильтрованные заявки
+  renderRequestsTable(filteredRequests);
+}
+
+/**
+ * Показать модальное окно выбора заявки для назначения исполнителя
+ */
+function showRequestSelectionModal() {
+  // Создаем модальное окно для выбора заявки
+  const modla = document.createElement('div');
+  modla.className = 'modal-overlay';
+  modla.id = 'requestSelectionModal';
+  modla.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+  `;  
+  
+  // Фильтруем заявки, которые можно назначить (статус pending или assigned)
+  const assignableRequests = requestsData.filter(req => req.status === 'pending' || req.status === 'assigned');
+  
+  let requestOptions = '';
+  if (assignableRequests.length > 0) {
+    requestOptions = assignableRequests.map(req => `
+      <div class="request-option" data-request-id="${req.id}" style="
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        background: white;
+      ">
+        <strong>#${req.id}</strong> - ${req.category} | ${req.address.substring(0, 50)}${req.address.length > 50 ? '...' : ''}
+        <span style="float: right; background: #e2e8f0; padding: 2px 8px; border-radius: 20px; font-size: 0.8em;">
+          ${req.status}
+        </span>
+      </div>
+    `).join('');
+  } else {
+    requestOptions = '<div style="padding: 20px; text-align: center; color: #666;">Нет заявок для назначения</div>';
+  }
+  
+  modla.innerHTML = `
+    <div class="modal-content" style="
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 600px;
+      max-height: 80vh;
+      overflow-y: auto;
+      position: relative;
+    ">
+      <h3 style="margin-top: 0;">Выберите заявку для назначения исполнителя</h3>
+      <div class="requests-list">
+        ${requestOptions}
+      </div>
+      <div style="margin-top: 20px; text-align: right;">
+        <button onclick="closeRequestSelectionModal()" class="btn btn-outline">Отмена</button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modla);
+  
+  // Добавляем обработчики для выбора заявки
+  document.querySelectorAll('.request-option').forEach(option => {
+    option.addEventListener('click', function() {
+      const requestId = parseInt(this.dataset.requestId);
+      closeRequestSelectionModal();
+      openAssignModal(requestId); // Открываем модальное окно назначения для выбранной заявки
+    });
+  });
+}
+
+/**
+ * Закрыть модальное окно выбора заявки
+ */
+function closeRequestSelectionModal() {
+  const modal = document.getElementById('requestSelectionModal');
+  if (modal) {
+    modal.remove();
+  }
+}
+
+/**
+ * Инициализация графика аналитики
+ */
+function initAnalyticsChart() {
+  const ctx = document.getElementById('analytics-performance');
+  if (!ctx) return;
+  
+  // Уничтожаем существующий экземпляр графика, если он есть
+  if (analyticsChart) {
+    analyticsChart.destroy();
+  }
+  
+  // Данные для графика эффективности
+  const data = {
+    labels: ['Освещение', 'Дороги', 'Мусор', 'Зеленые насаждения', 'Другое'],
+    datasets: [
+      {
+        label: 'Выполнено заявок',
+        data: [234, 456, 321, 156, 80],
+        backgroundColor: [
+          'rgba(59, 130, 246, 0.7)',
+          'rgba(245, 158, 11, 0.7)',
+          'rgba(16, 185, 129, 0.7)',
+          'rgba(16, 185, 129, 0.7)',
+          'rgba(139, 92, 246, 0.7)'
+        ],
+        borderColor: [
+          'rgb(59, 130, 246)',
+          'rgb(245, 158, 11)',
+          'rgb(16, 185, 129)',
+          'rgb(16, 185, 129)',
+          'rgb(139, 92, 246)'
+        ],
+        borderWidth: 1
+      },
+      {
+        label: 'Среднее время выполнения (часы)',
+        data: [12.5, 22.3, 18.7, 15.2, 25.1],
+        type: 'line',
+        fill: false,
+        borderColor: 'rgb(239, 68, 68)',
+        backgroundColor: 'rgba(239, 68, 68, 0.5)',
+        tension: 0.2,
+        yAxisID: 'y1'
+      }
+    ]
+  };
+  
+  // Опции графика
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top',
+      },
+      title: {
+        display: true,
+        text: 'Эффективность по категориям заявок'
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        max: 500, // Фиксированный максимум для оси Y
+        grid: {
+          color: "rgba(0,0,0,0.05)",
+        },
+        title: {
+          display: true,
+          text: 'Количество заявок'
+        }
+      },
+      y1: {
+        type: 'linear',
+        display: true,
+        position: 'right',
+        beginAtZero: true,
+        max: 30, // Фиксированный максимум для оси Y1
+        grid: {
+          drawOnChartArea: false,
+        },
+        title: {
+          display: true,
+          text: 'Время (часы)'
+        }
+      },
+      x: {
+        grid: {
+          display: false,
+        },
+      },
+    },
+    animation: {
+      duration: 0 // Отключаем анимацию для статичного вида
+    }
+  };
+  
+  // Создаем график
+  analyticsChart = new Chart(ctx, {
+    type: 'bar',
+    data: data,
+    options: options
   });
 }
 
@@ -758,6 +1089,169 @@ function getDefaultDeadline() {
   return date.toISOString().split("T")[0];
 }
 
+/**
+ * Функция экспорта данных
+ */
+function exportData() {
+  const activeSection = document.querySelector('.nav-item.active').dataset.section;
+  
+  switch(activeSection) {
+    case 'dashboard':
+      exportDashboardData();
+      break;
+    case 'requests':
+      exportRequestsData();
+      break;
+    case 'workers':
+      exportWorkersData();
+      break;
+    case 'analytics':
+      exportAnalyticsData();
+      break;
+    case 'map':
+      exportMapData();
+      break;
+    default:
+      exportDashboardData();
+  }
+}
+
+/**
+ * Экспорт данных дашборда
+ */
+function exportDashboardData() {
+  const data = {
+    total_requests: document.getElementById("stat-total").textContent,
+    in_progress: document.getElementById("stat-in-progress").textContent,
+    completed_today: document.getElementById("stat-completed-today").textContent,
+    overdue: document.getElementById("stat-overdue").textContent,
+    export_date: new Date().toLocaleString('ru-RU')
+  };
+  
+  downloadJSON(data, 'dashboard_export');
+}
+
+/**
+ * Экспорт данных заявок
+ */
+function exportRequestsData() {
+  const tableRows = document.querySelectorAll('#requests-table-body tr');
+  const data = [];
+  
+  tableRows.forEach(row => {
+    const cells = row.querySelectorAll('td');
+    if (cells.length > 0) {
+      data.push({
+        id: cells[0].textContent,
+        category: cells[1].textContent,
+        address: cells[2].textContent,
+        status: cells[3].textContent,
+        priority: cells[4].textContent,
+        citizen: cells[5].textContent,
+        worker: cells[6].textContent,
+        created_at: cells[7].textContent
+      });
+    }
+  });
+  
+  downloadCSV(data, 'requests_export');
+}
+
+/**
+ * Экспорт данных исполнителей
+ */
+function exportWorkersData() {
+  const tableRows = document.querySelectorAll('#workers-table-body tr');
+  const data = [];
+  
+  tableRows.forEach(row => {
+    const cells = row.querySelectorAll('td');
+    if (cells.length > 0) {
+      data.push({
+        name: cells[0].textContent.replace(/\s+/g, ' ').trim(),
+        assigned: cells[1].textContent,
+        completed: cells[2].textContent,
+        rate: cells[3].textContent,
+        avg_time: cells[4].textContent,
+        rating: cells[5].textContent
+      });
+    }
+  });
+  
+  downloadCSV(data, 'workers_export');
+}
+
+/**
+ * Экспорт аналитических данных
+ */
+function exportAnalyticsData() {
+  const data = {
+    export_date: new Date().toLocaleString('ru-RU')
+  };
+  
+  downloadJSON(data, 'analytics_export');
+}
+
+/**
+ * Экспорт данных карты
+ */
+function exportMapData() {
+  const data = {
+    map_center: hotspotMap ? hotspotMap.getCenter() : null,
+    zoom_level: hotspotMap ? hotspotMap.getZoom() : null,
+    export_date: new Date().toLocaleString('ru-RU')
+  };
+  
+  downloadJSON(data, 'map_export');
+}
+
+/**
+ * Скачать JSON файл
+ */
+function downloadJSON(data, filename) {
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${filename}_${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  
+  setTimeout(() => {
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  }, 0);
+}
+
+/**
+ * Скачать CSV файл
+ */
+function downloadCSV(data, filename) {
+  if (!data || data.length === 0) return;
+  
+  const headers = Object.keys(data[0]);
+  const csvContent = [
+    headers.join(','),
+    ...data.map(row => headers.map(header => `"${row[header] || ''}"`).join(','))
+  ].join('\n');
+  
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${filename}_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  
+  setTimeout(() => {
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  }, 0);
+}
+
 // Экспорт функций в глобальную область
 window.initAdminPage = initAdminPage;
 window.loadRequests = loadRequests;
@@ -768,3 +1262,4 @@ window.openAssignModal = openAssignModal;
 window.closeAssignModal = closeAssignModal;
 window.assignWorker = assignWorker;
 window.viewRequest = viewRequest;
+window.exportData = exportData;

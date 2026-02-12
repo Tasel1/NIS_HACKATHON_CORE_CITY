@@ -7,6 +7,8 @@ let selectedTaskId = null;
 let timerInterval = null;
 let timerSeconds = 0;
 let currentTaskDetail = null;
+let shiftInterval = null;
+let shiftSeconds = 0;
 
 /**
  * Инициализация страницы работника
@@ -14,6 +16,9 @@ let currentTaskDetail = null;
 function initWorkerPage() {
   loadTasks();
   initMap();
+  
+  // Запускаем таймер смены при инициализации
+  startShiftTimer();
 
   // Фильтр задач
   document
@@ -21,6 +26,64 @@ function initWorkerPage() {
     .addEventListener("change", function () {
       loadTasks(this.value);
     });
+}
+
+/**
+ * Запустить таймер смены
+ */
+function startShiftTimer() {
+  shiftSeconds = 0; // Начинаем с 00:00:00
+  updateShiftDisplay();
+
+  if (shiftInterval) clearInterval(shiftInterval);
+  shiftInterval = setInterval(() => {
+    shiftSeconds++;
+    updateShiftDisplay();
+  }, 1000);
+}
+
+/**
+ * Обновить отображение таймера смены
+ */
+function updateShiftDisplay() {
+  const shiftElement = document.getElementById("shiftTime");
+  if (!shiftElement) return;
+
+  const hours = Math.floor(shiftSeconds / 3600);
+  const minutes = Math.floor((shiftSeconds % 3600) / 60);
+  const seconds = shiftSeconds % 60;
+
+  shiftElement.textContent = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+}
+
+/**
+ * Обновить статистику исполнителя
+ */
+function updateWorkerStats() {
+  // Подсчитываем выполненные задачи сегодня
+  const today = new Date().toDateString();
+  const completedToday = currentTasks.filter(task => {
+    if (task.status !== 'completed') return false;
+    const taskDate = task.completed_at ? new Date(task.completed_at).toDateString() : today;
+    return taskDate === today;
+  }).length;
+  
+  // Общее количество выполненных задач
+  const totalCompleted = currentTasks.filter(task => task.status === 'completed').length;
+  
+  // Обновляем элементы статистики
+  const todayCompletedEl = document.getElementById('todayCompleted');
+  const workerRatingEl = document.getElementById('workerRating');
+  
+  if (todayCompletedEl) {
+    todayCompletedEl.textContent = `${completedToday}/${totalCompleted}`;
+  }
+  
+  if (workerRatingEl) {
+    // В реальной системе рейтинг приходит с сервера, здесь используем мок
+    const mockRating = 4.8;
+    workerRatingEl.textContent = `${mockRating} ⭐`;
+  }
 }
 
 /**
@@ -50,6 +113,9 @@ async function loadTasks(statusFilter = "assigned,in_progress") {
 
     renderTaskList(filtered);
     addTaskMarkers(filtered);
+    
+    // Обновляем статистику исполнителя
+    updateWorkerStats();
   } catch (error) {
     console.error("Error loading tasks:", error);
     taskList.innerHTML =
@@ -237,13 +303,14 @@ async function showTaskDetail(taskId) {
                 <div style="margin-bottom: 24px;">
                     <h4 style="font-size: 0.875rem; color: var(--gray-500); margin-bottom: 16px;">⏱️ УЧЁТ ВРЕМЕНИ</h4>
                     <div class="timer-container">
-                        <span class="timer-display" id="taskTimer">00:23:15</span>
+                        <span class="timer-display" id="taskTimer">00:00:00</span>
                         <div class="timer-controls">
-                            <button onclick="pauseTimer()" class="btn btn-secondary btn-small">⏸ Пауза</button>
+                            <button id="pauseResumeBtn" onclick="toggleTimer()" class="btn btn-secondary btn-small">⏸ Пауза</button>
                             <button onclick="completeTask(${task.id})" class="btn btn-success btn-small">✅ Завершить</button>
                         </div>
                     </div>
                 </div>
+                
                 
                 <div style="margin-bottom: 24px;">
                     <h4 style="font-size: 0.875rem; color: var(--gray-500); margin-bottom: 16px;">📸 ФОТООТЧЁТ</h4>
@@ -292,6 +359,28 @@ async function showTaskDetail(taskId) {
     }
 
     taskDetail.innerHTML = html;
+    
+    // Инициализируем таймер, если задача в процессе выполнения
+    if (task.status === "in_progress") {
+      // Сбрасываем таймер к начальному состоянию
+      timerSeconds = 0;
+      isTimerPaused = false;
+      
+      // Обновляем отображение таймера
+      const timerElement = document.getElementById("taskTimer");
+      if (timerElement) {
+        timerElement.textContent = "00:00:00";
+      }
+      
+      // Обновляем кнопку на "Пауза"
+      const pauseResumeBtn = document.getElementById("pauseResumeBtn");
+      if (pauseResumeBtn) {
+        pauseResumeBtn.innerHTML = "⏸ Пауза";
+      }
+      
+      // Запускаем таймер
+      startTimer();
+    }
   } catch (error) {
     console.error("Error loading task detail:", error);
     taskDetail.innerHTML =
@@ -319,14 +408,12 @@ async function startWork(taskId) {
     // Показываем детали с таймером
     await showTaskDetail(taskId);
 
-    // Запускаем таймер
-    startTimer();
-
     alert("✅ Работа начата!");
   } catch (error) {
     console.error("Error starting work:", error);
     alert("❌ Ошибка при начале работы");
   }
+}
 }
 
 /**
@@ -361,6 +448,9 @@ async function completeTask(taskId) {
     // Показываем заглушку в деталях
     document.getElementById("taskDetail").innerHTML =
       '<div class="text-center" style="padding: 40px;">✅ Задача завершена и отправлена на проверку</div>';
+
+    // Обновляем статистику исполнителя
+    updateWorkerStats();
 
     alert("✅ Задача успешно завершена!");
   } catch (error) {
@@ -477,7 +567,7 @@ function addTaskMarkers(tasks) {
  * Запустить таймер
  */
 function startTimer() {
-  timerSeconds = 23 * 60 + 15; // 23:15 для демо
+  timerSeconds = 0; // Начинаем с 00:00:00
   updateTimerDisplay();
 
   if (timerInterval) clearInterval(timerInterval);
@@ -498,13 +588,49 @@ function stopTimer() {
 }
 
 /**
- * Пауза таймера
+ * Toggle timer between pause and resume
  */
-function pauseTimer() {
+let isTimerPaused = false;
+let pausedTime = 0;
+
+function toggleTimer() {
+  const pauseResumeBtn = document.getElementById('pauseResumeBtn');
+  
   if (timerInterval) {
+    // Таймер запущен, нужно поставить на паузу
     clearInterval(timerInterval);
     timerInterval = null;
+    isTimerPaused = true;
+    pausedTime = timerSeconds; // Сохраняем текущее время
+    
+    // Обновляем текст кнопки на "Возобновить"
+    if (pauseResumeBtn) {
+      pauseResumeBtn.innerHTML = '▶️ Возобновить';
+    }
+  } else if (isTimerPaused) {
+    // Таймер на паузе, нужно возобновить
+    isTimerPaused = false;
+    
+    timerSeconds = pausedTime; // Восстанавливаем сохраненное время
+    
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      timerSeconds++;
+      updateTimerDisplay();
+    }, 1000);
+    
+    // Обновляем текст кнопки на "Пауза"
+    if (pauseResumeBtn) {
+      pauseResumeBtn.innerHTML = '⏸ Пауза';
+    }
   }
+}
+
+/**
+ * Пауза таймера (для совместимости)
+ */
+function pauseTimer() {
+  toggleTimer();
 }
 
 /**

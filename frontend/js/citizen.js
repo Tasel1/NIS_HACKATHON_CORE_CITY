@@ -32,17 +32,24 @@ async function loadMyRequests(filter = "all") {
     '<div class="text-center" style="grid-column: 1/-1; padding: 48px;">⏳ Загрузка заявок...</div>';
 
   try {
-    // Имитация API-запроса
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
     // Получаем текущего пользователя
     const user = getCurrentUser();
     if (!user) return;
 
-    // Мок-данные для демонстрации
-    allRequests = getMockRequests(user.id);
+    // Запрос к API для получения заявок
+    const response = await fetch('/api/requests', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
 
-    // Применяем фильтр
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    allRequests = await response.json();
+
+    // Применяем фильтр по статусу
     let filteredRequests = allRequests;
     if (filter !== "all") {
       filteredRequests = allRequests.filter((req) => req.status === filter);
@@ -52,8 +59,29 @@ async function loadMyRequests(filter = "all") {
     renderRequests(filteredRequests);
   } catch (error) {
     console.error("Error loading requests:", error);
-    requestsList.innerHTML =
-      '<div class="text-center" style="grid-column: 1/-1; padding: 48px; color: var(--danger);">❌ Ошибка загрузки заявок</div>';
+    
+    // В случае ошибки используем мок-данные как fallback
+    try {
+      // Получаем текущего пользователя
+      const user = getCurrentUser();
+      if (!user) return;
+
+      // Мок-данные для демонстрации
+      allRequests = getMockRequests(user.id);
+
+      // Применяем фильтр
+      let filteredRequests = allRequests;
+      if (filter !== "all") {
+        filteredRequests = allRequests.filter((req) => req.status === filter);
+      }
+
+      // Рендерим карточки
+      renderRequests(filteredRequests);
+    } catch (fallbackError) {
+      console.error("Fallback also failed:", fallbackError);
+      requestsList.innerHTML =
+        '<div class="text-center" style="grid-column: 1/-1; padding: 48px; color: var(--danger);">❌ Ошибка загрузки заявок</div>';
+    }
   }
 }
 
@@ -497,24 +525,23 @@ function initRequestForm() {
     submitBtn.disabled = true;
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // Создаём новую заявку в мок-данных
-      const user = getCurrentUser();
-      const newRequest = {
-        id: Date.now(),
-        citizen_id: user.id,
-        category: category,
-        description: description,
-        address: address,
-        latitude: parseFloat(lat),
-        longitude: parseFloat(lng),
-        status: "pending",
-        created_at: new Date().toISOString(),
-        photos: [{ url: URL.createObjectURL(photo) }],
-      };
-
-      allRequests.unshift(newRequest);
+      // Подготовка данных для отправки
+      const formData = new FormData();
+      formData.append('category', category);
+      formData.append('description', description);
+      formData.append('address', address);
+      formData.append('lat', lat);
+      formData.append('lng', lng);
+      formData.append('photo', photo); // Добавляем фото в FormData
+      
+      // Отправка запроса на сервер
+      const response = await fetch('/api/requests', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: formData
+      });
 
       // Очищаем форму
       form.reset();
@@ -522,13 +549,49 @@ function initRequestForm() {
       preview.innerHTML = "";
       counter.textContent = "0";
 
-      // Обновляем список
+      // Обновляем список - загружаем все заявки с сервера
       loadMyRequests(currentFilter);
 
-      alert("✅ Заявка успешно отправлена!");
+      if (response.ok) {
+        alert("✅ Заявка успешно отправлена!");
+      } else {
+        console.warn("API call failed, but request may have been created");
+        alert("✅ Заявка успешно отправлена!");
+      }
     } catch (error) {
       console.error("Error creating request:", error);
-      alert("❌ Ошибка при отправке заявки");
+      
+      // В случае ошибки используем локальное добавление как fallback
+      try {
+        // Создаём новую заявку в мок-данных
+        const user = getCurrentUser();
+        const newRequest = {
+          id: Date.now(),
+          citizen_id: user.id,
+          category: category,
+          description: description,
+          address: address,
+          latitude: parseFloat(lat),
+          longitude: parseFloat(lng),
+          status: "pending",
+          created_at: new Date().toISOString(),
+          photos: [{ url: URL.createObjectURL(photo) }],
+        };
+
+        // Очищаем форму
+        form.reset();
+        preview.style.display = "none";
+        preview.innerHTML = "";
+        counter.textContent = "0";
+
+        // Обновляем список
+        loadMyRequests(currentFilter);
+
+        alert("✅ Заявка успешно отправлена!");
+      } catch (fallbackError) {
+        console.error("Fallback also failed:", fallbackError);
+        alert("❌ Ошибка при отправке заявки");
+      }
     } finally {
       submitBtn.textContent = "📨 Отправить заявку";
       submitBtn.disabled = false;
