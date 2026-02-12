@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=5.0"
+    />
+    <meta name="description" content="Панель исполнителя — Core City" />
+    <title>Исполнитель — Core City</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Leaflet CSS -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <!-- Leaflet MarkerCluster CSS -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+    />
+    <!-- Наши стили -->
+    <link rel="stylesheet" href="css/main.css" />
+    <link rel="stylesheet" href="css/worker.css" />
+  </head>
+  <body>
+    <!-- Navbar -->
+    <nav class="navbar">
+      <div class="container">
+        <div class="navbar-inner">
+          <div class="logo">🏙️ Core City</div>
+          <div class="nav-links">
+            <span id="nav-username"></span>
+            <span class="worker-status">🟢 На смене</span>
+            <button onclick="logout()" class="btn-logout">Выйти</button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="worker-layout">
+      <!-- Sidebar со списком задач -->
+      <aside class="worker-sidebar">
+        <div class="sidebar-header">
+          <h2>📋 Мои задачи</h2>
+          <div class="task-filters">
+            <select id="taskStatusFilter" class="input" style="height: 40px">
+              <option value="assigned">Назначено</option>
+              <option value="in_progress">В работе</option>
+              <option value="all">Все активные</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="taskList" class="task-list">
+          <!-- Задачи будут загружены через JS -->
+          <div
+            class="text-center"
+            style="padding: 24px; color: var(--gray-500)"
+          >
+            ⏳ Загрузка задач...
+          </div>
+        </div>
+
+        <div class="worker-stats">
+          <div class="stat-item">
+            <span class="stat-label">Выполнено сегодня</span>
+            <span class="stat-value" id="todayCompleted">4/9</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Рейтинг</span>
+            <span class="stat-value" id="workerRating">4.8 ⭐</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Время смены</span>
+            <span class="stat-value" id="shiftTime">05:23:47</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Основная панель с картой и деталями задачи -->
+      <main class="worker-main">
+        <!-- Карта -->
+        <div
+          id="map"
+          style="
+            height: 400px;
+            width: 100%;
+            border-radius: 16px;
+            margin-bottom: 24px;
+          "
+        ></div>
+
+        <!-- Детали задачи -->
+        <div id="taskDetail" class="card">
+          <div
+            class="text-center"
+            style="padding: 40px; color: var(--gray-500)"
+          >
+            🗺️ Выберите задачу из списка
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <!-- Наши скрипты -->
+    <script src="js/auth.js"></script>
+    <script src="js/worker.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        if (!requireAuth()) return;
+
+        const user = getCurrentUser();
+        if (user) {
+          document.getElementById("nav-username").textContent =
+            user.full_name || user.email;
+        }
+
+        initWorkerPage();
+      });
+    </script>
+  </body>
+</html>

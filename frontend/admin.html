@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=5.0"
+    />
+    <meta name="description" content="Панель администратора — Core City" />
+    <title>Администратор — Core City</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Chart.js для графиков -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Leaflet для карты -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+    />
+    <!-- Наши стили -->
+    <link rel="stylesheet" href="css/main.css" />
+    <link rel="stylesheet" href="css/admin.css" />
+  </head>
+  <body>
+    <!-- Navbar -->
+    <nav class="navbar">
+      <div class="container">
+        <div class="navbar-inner">
+          <div class="logo">🏙️ Core City</div>
+          <div class="nav-links">
+            <span id="nav-username"></span>
+            <span class="admin-badge">Главный администратор</span>
+            <button onclick="logout()" class="btn-logout">Выйти</button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="admin-layout">
+      <!-- Сайдбар навигации -->
+      <aside class="admin-sidebar">
+        <div class="admin-profile">
+          <div class="admin-avatar">👩‍💼</div>
+          <div class="admin-info">
+            <h4>Елена Админова</h4>
+            <span class="admin-role">Администратор</span>
+          </div>
+        </div>
+
+        <nav class="admin-nav">
+          <a href="#" class="nav-item active" data-section="dashboard">
+            <span class="nav-icon">📊</span>
+            <span>Дашборд</span>
+          </a>
+          <a href="#" class="nav-item" data-section="requests">
+            <span class="nav-icon">📋</span>
+            <span>Заявки</span>
+            <span class="nav-badge">24</span>
+          </a>
+          <a href="#" class="nav-item" data-section="map">
+            <span class="nav-icon">🗺️</span>
+            <span>Карта</span>
+          </a>
+          <a href="#" class="nav-item" data-section="workers">
+            <span class="nav-icon">👥</span>
+            <span>Исполнители</span>
+          </a>
+          <a href="#" class="nav-item" data-section="analytics">
+            <span class="nav-icon">📈</span>
+            <span>Аналитика</span>
+          </a>
+        </nav>
+
+        <div class="system-status">
+          <h4>Статус системы</h4>
+          <div class="status-item">
+            <span class="status-label">Сервер</span>
+            <span class="status-value online">● Online</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">База данных</span>
+            <span class="status-value online">● Connected</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">SLA</span>
+            <span class="status-value">98.7%</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Основной контент -->
+      <main class="admin-main">
+        <!-- Заголовок и фильтры -->
+        <div class="content-header">
+          <h1 class="page-title">Панель управления</h1>
+          <div class="date-range">
+            <select class="input" style="width: 200px">
+              <option>Последние 7 дней</option>
+              <option>Последние 30 дней</option>
+              <option>Этот месяц</option>
+            </select>
+            <button class="btn btn-outline btn-small">📥 Экспорт</button>
+          </div>
+        </div>
+
+        <!-- Секция дашборда -->
+        <section id="dashboard-section">
+          <!-- KPI Карточки -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-icon blue">📋</div>
+              <div class="kpi-content">
+                <span class="kpi-label">Всего заявок</span>
+                <span class="kpi-value" id="stat-total">1,247</span>
+                <span class="kpi-trend positive">↑ 12%</span>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon yellow">⏳</div>
+              <div class="kpi-content">
+                <span class="kpi-label">В работе</span>
+                <span class="kpi-value" id="stat-in-progress">156</span>
+                <span class="kpi-trend">↘ 3%</span>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon green">✅</div>
+              <div class="kpi-content">
+                <span class="kpi-label">Выполнено сегодня</span>
+                <span class="kpi-value" id="stat-completed-today">89</span>
+                <span class="kpi-trend positive">↑ 8%</span>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon red">⚠️</div>
+              <div class="kpi-content">
+                <span class="kpi-label">Просрочено</span>
+                <span class="kpi-value" id="stat-overdue">12</span>
+                <span class="kpi-trend negative">↑ 2</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Графики -->
+          <div class="charts-row">
+            <div class="chart-card">
+              <h3>📈 Динамика заявок</h3>
+              <canvas
+                id="chart-timeline"
+                style="width: 100%; height: 300px"
+              ></canvas>
+            </div>
+            <div class="chart-card">
+              <h3>🥧 Категории заявок</h3>
+              <canvas
+                id="chart-categories"
+                style="width: 100%; height: 300px"
+              ></canvas>
+            </div>
+          </div>
+        </section>
+
+        <!-- Секция карты горячих точек -->
+        <section id="map-section" style="display: none">
+          <div class="map-card">
+            <div class="map-header">
+              <h3>🗺️ Карта обращений</h3>
+              <div class="map-filters">
+                <select class="input" style="width: 150px">
+                  <option>Все категории</option>
+                </select>
+                <select class="input" style="width: 150px">
+                  <option>Все статусы</option>
+                </select>
+              </div>
+            </div>
+            <div
+              id="hotspot-map"
+              style="height: 500px; width: 100%; border-radius: 16px"
+            ></div>
+          </div>
+        </section>
+
+        <!-- Секция заявок -->
+        <section id="requests-section" style="display: none">
+          <div class="table-card">
+            <div class="table-header">
+              <h3>📋 Управление заявками</h3>
+              <div class="table-filters">
+                <select
+                  id="requestStatusFilter"
+                  class="input"
+                  style="width: 150px"
+                >
+                  <option value="">Все статусы</option>
+                  <option value="pending">Ожидает</option>
+                  <option value="assigned">Назначено</option>
+                  <option value="in_progress">В работе</option>
+                  <option value="completed">Выполнено</option>
+                </select>
+                <select
+                  id="requestCategoryFilter"
+                  class="input"
+                  style="width: 150px"
+                >
+                  <option value="">Все категории</option>
+                  <option value="lighting">Освещение</option>
+                  <option value="garbage">Мусор</option>
+                  <option value="pothole">Дороги</option>
+                </select>
+                <button
+                  class="btn btn-primary btn-small"
+                  onclick="openAssignModal()"
+                >
+                  ➕ Назначить
+                </button>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="data-table" id="requests-table">
+                <thead>
+                  <tr>
+                    <th onclick="sortTable('id')">ID</th>
+                    <th onclick="sortTable('category')">Категория</th>
+                    <th onclick="sortTable('address')">Адрес</th>
+                    <th onclick="sortTable('status')">Статус</th>
+                    <th onclick="sortTable('priority')">Приоритет</th>
+                    <th onclick="sortTable('citizen')">Житель</th>
+                    <th onclick="sortTable('worker')">Исполнитель</th>
+                    <th onclick="sortTable('created_at')">Создана</th>
+                    <th>Действия</th>
+                  </tr>
+                </thead>
+                <tbody id="requests-table-body">
+                  <!-- Заполняется через JS -->
+                </tbody>
+              </table>
+            </div>
+
+            <div class="table-footer">
+              <div class="pagination">
+                <span class="pagination-info">Показано 1-10 из 1,247</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Секция исполнителей -->
+        <section id="workers-section" style="display: none">
+          <div class="table-card">
+            <h3>👥 Рейтинг исполнителей</h3>
+            <div class="table-responsive">
+              <table class="data-table" id="workers-table">
+                <thead>
+                  <tr>
+                    <th onclick="sortWorkers('name')">Исполнитель</th>
+                    <th onclick="sortWorkers('assigned')">Назначено</th>
+                    <th onclick="sortWorkers('completed')">Выполнено</th>
+                    <th onclick="sortWorkers('rate')">%</th>
+                    <th onclick="sortWorkers('avg_time')">Ср. время</th>
+                    <th onclick="sortWorkers('rating')">Рейтинг</th>
+                  </tr>
+                </thead>
+                <tbody id="workers-table-body">
+                  <!-- Заполняется через JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Модальное окно назначения исполнителя -->
+    <div id="assignModal" class="modal-overlay" style="display: none">
+      <div class="modal" style="max-width: 500px">
+        <button class="modal-close" onclick="closeAssignModal()">×</button>
+        <h3 style="margin-bottom: 24px">Назначить исполнителя</h3>
+        <div id="assignModalContent">
+          <!-- Заполняется через JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Скрипты -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/admin.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        if (!requireAuth()) return;
+
+        const user = getCurrentUser();
+        if (user) {
+          document.getElementById("nav-username").textContent =
+            user.full_name || user.email;
+        }
+
+        initAdminPage();
+      });
+    </script>
+  </body>
+</html>

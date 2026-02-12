@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Регистрация - Core City</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/auth.css">
+</head>
+<body class="auth-page">
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="logo">🏙️</div>
+                <h1>Регистрация</h1>
+                <p>Создайте аккаунт в Core City</p>
+            </div>
+
+            <form id="registerForm" class="auth-form">
+                <div class="form-group">
+                    <label for="full_name">Полное имя</label>
+                    <input 
+                        type="text" 
+                        id="full_name" 
+                        name="full_name" 
+                        placeholder="Иван Иванов"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        name="email" 
+                        placeholder="ivan@example.com"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="phone">Телефон</label>
+                    <input 
+                        type="tel" 
+                        id="phone" 
+                        name="phone" 
+                        placeholder="+7 (700) 123-45-67"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Пароль</label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password" 
+                        placeholder="Минимум 8 символов"
+                        required
+                        minlength="8"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="confirm_password">Подтвердите пароль</label>
+                    <input 
+                        type="password" 
+                        id="confirm_password" 
+                        name="confirm_password" 
+                        placeholder="••••••••"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="role">Я —</label>
+                    <select id="role" name="role" required>
+                        <option value="citizen">Гражданин</option>
+                        <option value="worker">Исполнитель</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block">
+                    Зарегистрироваться
+                </button>
+            </form>
+
+            <div class="auth-footer">
+                <p>Уже есть аккаунт? <a href="login.html">Войти</a></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                full_name: document.getElementById('full_name').value,
+                email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value,
+                password: document.getElementById('password').value,
+                role: document.getElementById('role').value
+            };
+
+            const confirmPassword = document.getElementById('confirm_password').value;
+
+            if (formData.password !== confirmPassword) {
+                showToast('Пароли не совпадают', 'error');
+                return;
+            }
+
+            try {
+                await register(formData);
+            } catch (error) {
+                showToast(error.message || 'Ошибка регистрации', 'error');
+            }
+        });
+    </script>
+</body>
+</html>

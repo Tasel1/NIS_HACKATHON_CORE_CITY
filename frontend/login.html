@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=5.0"
+    />
+    <meta name="description" content="Вход в Core City" />
+    <title>Вход — Core City</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/main.css" />
+    <style>
+      .login-page {
+        background: linear-gradient(145deg, #f1f5f9 0%, #e2e8f0 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+      }
+      .login-container {
+        max-width: 480px;
+        width: 100%;
+      }
+      .login-card {
+        background: white;
+        border-radius: 32px;
+        padding: 2.5rem;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+      }
+      .login-header {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+      .login-logo {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #2563eb;
+        margin-bottom: 0.5rem;
+      }
+      .login-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 0.5rem;
+      }
+      .form-group {
+        margin-bottom: 1.25rem;
+      }
+      .form-group label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 0.5rem;
+      }
+      .form-input {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        font-size: 1rem;
+        transition: all 0.2s;
+      }
+      .form-input:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+      }
+      .role-selector {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        margin: 1.5rem 0;
+      }
+      .role-option {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 1rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 16px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .role-option:hover {
+        border-color: #2563eb;
+        background: #eff6ff;
+      }
+      .role-option.selected {
+        border-color: #2563eb;
+        background: #eff6ff;
+      }
+      .role-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+      }
+      .role-name {
+        font-size: 0.875rem;
+        font-weight: 600;
+      }
+      .btn-block {
+        width: 100%;
+        padding: 0.875rem;
+        font-size: 1rem;
+      }
+      .login-footer {
+        margin-top: 1.5rem;
+        text-align: center;
+        font-size: 0.875rem;
+        color: #64748b;
+      }
+      @media (max-width: 640px) {
+        .role-selector {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body class="login-page">
+    <div class="login-container">
+      <div class="login-card">
+        <div class="login-header">
+          <div class="login-logo">🏙️ Core City</div>
+          <div class="login-title">Вход в систему</div>
+          <p style="color: #64748b; margin-top: 0.5rem">
+            Демо-режим — выберите роль
+          </p>
+        </div>
+
+        <form id="loginForm">
+          <div class="form-group">
+            <label for="email">Электронная почта</label>
+            <input
+              type="email"
+              id="email"
+              class="form-input"
+              placeholder="city@example.ru"
+              value="demo@corecity.ru"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="password">Пароль</label>
+            <input
+              type="password"
+              id="password"
+              class="form-input"
+              placeholder="••••••••"
+              value="demo123"
+              required
+            />
+          </div>
+
+          <div style="margin: 1.5rem 0 1rem 0">
+            <label
+              style="
+                display: block;
+                font-size: 0.875rem;
+                font-weight: 600;
+                margin-bottom: 0.75rem;
+              "
+              >Выберите роль</label
+            >
+            <div class="role-selector" id="roleSelector">
+              <div class="role-option selected" data-role="citizen">
+                <span class="role-icon">👤</span>
+                <span class="role-name">Житель</span>
+              </div>
+              <div class="role-option" data-role="worker">
+                <span class="role-icon">🛠️</span>
+                <span class="role-name">Исполнитель</span>
+              </div>
+              <div class="role-option" data-role="admin">
+                <span class="role-icon">📊</span>
+                <span class="role-name">Администратор</span>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block">Войти</button>
+        </form>
+
+        <div class="login-footer">
+          <p style="font-size: 0.75rem; color: #94a3b8">
+            * Реальная авторизация не требуется. Любые данные работают в
+            демо-режиме.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+      // Выбор роли
+      document.querySelectorAll(".role-option").forEach((option) => {
+        option.addEventListener("click", function () {
+          document
+            .querySelectorAll(".role-option")
+            .forEach((opt) => opt.classList.remove("selected"));
+          this.classList.add("selected");
+        });
+      });
+
+      // Обработка формы входа
+      document
+        .getElementById("loginForm")
+        .addEventListener("submit", function (e) {
+          e.preventDefault();
+          const email = document.getElementById("email").value;
+          const password = document.getElementById("password").value;
+          const selectedRole =
+            document.querySelector(".role-option.selected")?.dataset.role ||
+            "citizen";
+          login(email, password, selectedRole);
+        });
+    </script>
+  </body>
+</html>

@@ -1,13 +1,187 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>nis-hackathon-core-city</title>
+    <title>Core City - Платформа управления городом</title>
+    <link rel="stylesheet" href="css/main.css" />
+    <style>
+      .hero {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 40px 20px;
+      }
+
+      .hero-content {
+        text-align: center;
+        color: white;
+        max-width: 800px;
+      }
+
+      .hero-icon {
+        font-size: 120px;
+        margin-bottom: 24px;
+        animation: float 3s ease-in-out infinite;
+      }
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-20px);
+        }
+      }
+
+      .hero h1 {
+        font-size: 56px;
+        font-weight: 800;
+        margin-bottom: 16px;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      }
+
+      .hero p {
+        font-size: 20px;
+        margin-bottom: 40px;
+        opacity: 0.95;
+      }
+
+      .hero-buttons {
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .hero-btn {
+        padding: 16px 40px;
+        font-size: 18px;
+        font-weight: 600;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.3s;
+        display: inline-block;
+      }
+
+      .btn-white {
+        background: white;
+        color: #667eea;
+      }
+
+      .btn-white:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      }
+
+      .btn-outline-white {
+        background: transparent;
+        border: 3px solid white;
+        color: white;
+      }
+
+      .btn-outline-white:hover {
+        background: white;
+        color: #667eea;
+        transform: translateY(-3px);
+      }
+
+      .features {
+        padding: 80px 20px;
+        background: white;
+      }
+
+      .features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 40px;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      .feature-card {
+        text-align: center;
+        padding: 32px;
+        border-radius: 16px;
+        background: #f8fafc;
+        transition: all 0.3s;
+      }
+
+      .feature-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      }
+
+      .feature-icon {
+        font-size: 64px;
+        margin-bottom: 16px;
+      }
+
+      .feature-card h3 {
+        font-size: 22px;
+        margin-bottom: 12px;
+        color: #1e293b;
+      }
+
+      .feature-card p {
+        color: #64748b;
+        line-height: 1.6;
+      }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
+    <section class="hero">
+      <div class="hero-content">
+        <div class="hero-icon">🏙️</div>
+        <h1>Core City</h1>
+        <p>
+          Современная платформа для управления городскими проблемами.<br />Граждане
+          сообщают, исполнители решают, город становится лучше.
+        </p>
+
+        <div class="hero-buttons">
+          <a href="login.html" class="hero-btn btn-white"> Войти в систему </a>
+          <a href="register.html" class="hero-btn btn-outline-white">
+            Регистрация
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="features">
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">👤</div>
+          <h3>Для граждан</h3>
+          <p>
+            Создавайте заявки о городских проблемах с фото и геолокацией.
+            Отслеживайте статус выполнения в реальном времени.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">👷</div>
+          <h3>Для исполнителей</h3>
+          <p>
+            Получайте назначенные задачи с картой. Управляйте процессом
+            выполнения и загружайте фото результата.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>Для администраторов</h3>
+          <p>
+            Мониторинг всех заявок, аналитика, распределение задач между
+            исполнителями.
+          </p>
+        </div>
+      </div>
+    </section>
   </body>
 </html>
