@@ -1,0 +1,766 @@
+// ===== WORKER.JS — Полная логика интерфейса исполнителя =====
+
+let map = null;
+let markersLayer = null;
+let currentTasks = [];
+let selectedTaskId = null;
+let timerInterval = null;
+let timerSeconds = 0;
+let currentTaskDetail = null;
+let shiftInterval = null;
+let shiftSeconds = 0;
+
+/**
+ * Инициализация страницы работника
+ */
+function initWorkerPage() {
+  loadTasks();
+  initMap();
+  
+  // Запускаем таймер смены при инициализации
+  startShiftTimer();
+
+  // Фильтр задач
+  document
+    .getElementById("taskStatusFilter")
+    .addEventListener("change", function () {
+      loadTasks(this.value);
+    });
+}
+
+/**
+ * Запустить таймер смены
+ */
+function startShiftTimer() {
+  shiftSeconds = 0; // Начинаем с 00:00:00
+  updateShiftDisplay();
+
+  if (shiftInterval) clearInterval(shiftInterval);
+  shiftInterval = setInterval(() => {
+    shiftSeconds++;
+    updateShiftDisplay();
+  }, 1000);
+}
+
+/**
+ * Обновить отображение таймера смены
+ */
+function updateShiftDisplay() {
+  const shiftElement = document.getElementById("shiftTime");
+  if (!shiftElement) return;
+
+  const hours = Math.floor(shiftSeconds / 3600);
+  const minutes = Math.floor((shiftSeconds % 3600) / 60);
+  const seconds = shiftSeconds % 60;
+
+  shiftElement.textContent = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+}
+
+/**
+ * Обновить статистику исполнителя
+ */
+function updateWorkerStats() {
+  // Подсчитываем выполненные задачи сегодня
+  const today = new Date().toDateString();
+  const completedToday = currentTasks.filter(task => {
+    if (task.status !== 'completed') return false;
+    const taskDate = task.completed_at ? new Date(task.completed_at).toDateString() : today;
+    return taskDate === today;
+  }).length;
+  
+  // Общее количество выполненных задач
+  const totalCompleted = currentTasks.filter(task => task.status === 'completed').length;
+  
+  // Обновляем элементы статистики
+  const todayCompletedEl = document.getElementById('todayCompleted');
+  const workerRatingEl = document.getElementById('workerRating');
+  
+  if (todayCompletedEl) {
+    todayCompletedEl.textContent = `${completedToday}/${totalCompleted}`;
+  }
+  
+  if (workerRatingEl) {
+    // В реальной системе рейтинг приходит с сервера, здесь используем мок
+    const mockRating = 4.8;
+    workerRatingEl.textContent = `${mockRating} ⭐`;
+  }
+}
+
+/**
+ * Загрузить задачи исполнителя
+ * @param {string} statusFilter - Фильтр по статусу
+ */
+async function loadTasks(statusFilter = "assigned,in_progress") {
+  const taskList = document.getElementById("taskList");
+  taskList.innerHTML =
+    '<div class="text-center" style="padding: 24px;">⏳ Загрузка задач...</div>';
+
+  try {
+    // Запрос к API для получения задач
+    const response = await fetch('/api/requests', {
+      headers: getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const allTasks = await response.json();
+    
+    // Фильтрация по статусу
+    let filtered = allTasks;
+    if (statusFilter !== "all") {
+      const statuses = statusFilter.split(",");
+      filtered = allTasks.filter((task) => statuses.includes(task.status));
+    }
+
+    // Фильтрация только задач, назначенных текущему исполнителю
+    const currentUser = getCurrentUser();
+    currentTasks = filtered.filter(task => task.assigned_worker_id === currentUser.id);
+
+    renderTaskList(currentTasks);
+    addTaskMarkers(currentTasks);
+
+    // Обновляем статистику исполнителя
+    updateWorkerStats();
+  } catch (error) {
+    console.error("Error loading tasks:", error);
+    taskList.innerHTML =
+      '<div class="text-center" style="padding: 24px; color: var(--danger);">❌ Ошибка загрузки задач</div>';
+  }
+}
+
+/**
+ * Рендеринг списка задач
+ * @param {Array} tasks - Массив задач
+ */
+function renderTaskList(tasks) {
+  const taskList = document.getElementById("taskList");
+
+  if (!tasks || tasks.length === 0) {
+    taskList.innerHTML =
+      '<div class="text-center" style="padding: 24px; color: var(--gray-500);">📭 Нет активных задач</div>';
+    return;
+  }
+
+  // Сортировка по приоритету
+  const priorityOrder = { urgent: 1, high: 2, medium: 3, low: 4 };
+  const sortedTasks = [...tasks].sort(
+    (a, b) =>
+      (priorityOrder[a.priority] || 99) - (priorityOrder[b.priority] || 99),
+  );
+
+  taskList.innerHTML = sortedTasks.map((task) => renderTaskCard(task)).join("");
+
+  // Добавляем обработчики клика
+  document.querySelectorAll(".task-card").forEach((card) => {
+    card.addEventListener("click", function (e) {
+      const taskId = parseInt(this.dataset.taskId);
+      selectTask(taskId);
+    });
+  });
+}
+
+/**
+ * Рендеринг одной карточки задачи
+ * @param {object} task - Объект задачи
+ * @returns {string} HTML карточки
+ */
+function renderTaskCard(task) {
+  const categoryIcons = {
+    lighting: "💡",
+    garbage: "🗑️",
+    pothole: "🕳️",
+    other: "🔧",
+  };
+
+  const icon = categoryIcons[task.category] || "📌";
+  const priorityClass = `priority-${task.priority}`;
+  const isSelected = task.id === selectedTaskId ? "selected" : "";
+
+  // Расстояние (мок)
+  const distance = (Math.random() * 3 + 0.5).toFixed(1);
+
+  return `
+        <div class="task-card ${priorityClass} ${isSelected}" data-task-id="${task.id}">
+            <div class="task-card-header">
+                <span class="task-category">${icon}</span>
+                <span class="priority-badge">${getPriorityText(task.priority)}</span>
+            </div>
+            <div class="task-title">${task.description.substring(0, 50)}</div>
+            <div class="task-address">📍 ${task.address}</div>
+            <div class="task-meta">
+                <span class="task-distance">🚗 ${distance} км</span>
+                ${
+                  task.status === "in_progress"
+                    ? `<span class="task-timer">⏱️ 00:23:15</span>`
+                    : `<span class="task-deadline ${isDeadlineUrgent(task.deadline) ? "deadline-urgent" : ""}">
+                        ⏰ ${getDeadlineText(task.deadline)}
+                       </span>`
+                }
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Получить текст приоритета
+ */
+function getPriorityText(priority) {
+  const map = {
+    urgent: "Срочно",
+    high: "Высокий",
+    medium: "Средний",
+    low: "Низкий",
+  };
+  return map[priority] || priority;
+}
+
+/**
+ * Проверка, близок ли дедлайн
+ */
+function isDeadlineUrgent(deadline) {
+  if (!deadline) return false;
+  const deadlineDate = new Date(deadline);
+  const now = new Date();
+  const diffHours = (deadlineDate - now) / (1000 * 60 * 60);
+  return diffHours < 4;
+}
+
+/**
+ * Получить текст дедлайна
+ */
+function getDeadlineText(deadline) {
+  if (!deadline) return "Нет срока";
+  const deadlineDate = new Date(deadline);
+  const now = new Date();
+  const diffHours = Math.floor((deadlineDate - now) / (1000 * 60 * 60));
+
+  if (diffHours < 0) return "Просрочено";
+  if (diffHours < 24) return `${diffHours} ч`;
+  return `${Math.floor(diffHours / 24)} д`;
+}
+
+/**
+ * Выбрать задачу
+ * @param {number} taskId - ID задачи
+ */
+async function selectTask(taskId) {
+  selectedTaskId = taskId;
+
+  // Подсветка в списке
+  document.querySelectorAll(".task-card").forEach((card) => {
+    card.classList.remove("selected");
+    if (parseInt(card.dataset.taskId) === taskId) {
+      card.classList.add("selected");
+    }
+  });
+
+  // Центрируем карту на задаче
+  const task = currentTasks.find((t) => t.id === taskId);
+  if (task && map) {
+    map.setView([task.latitude || 51.18, task.longitude || 71.45], 16);
+  }
+
+  // Загружаем детали задачи
+  await showTaskDetail(taskId);
+}
+
+/**
+ * Показать детали задачи
+ * @param {number} taskId - ID задачи
+ */
+async function showTaskDetail(taskId) {
+  const taskDetail = document.getElementById("taskDetail");
+
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    let task = currentTasks.find((t) => t.id === taskId);
+    // If task is not in the current filtered list, fetch it directly from the API
+    if (!task) {
+      try {
+        const response = await fetch(`/api/requests/${taskId}`, {
+          headers: getAuthHeaders()
+        });
+        
+        if (!response.ok) {
+          throw new Error("Could not load task details");
+        }
+        
+        task = await response.json();
+        
+        // Verify that the current user is assigned to this task
+        const currentUser = getCurrentUser();
+        if (task.assigned_worker_id !== currentUser.id) {
+          throw new Error("This task is not assigned to you");
+        }
+      } catch (error) {
+        console.error("Error fetching task details:", error);
+        throw new Error("Task not found or not assigned to you");
+      }
+    }
+
+    currentTaskDetail = task;
+
+    let html = `
+            <div class="task-detail-header">
+                <h3>Задача #${task.id}</h3>
+                <span class="badge badge-${task.status}">${getStatusText(task.status)}</span>
+            </div>
+            
+            <div style="margin-bottom: 24px;">
+                <h4 style="font-size: 0.875rem; color: var(--gray-500); margin-bottom: 8px;">АДРЕС</h4>
+                <p style="font-weight: 600;">${task.address}</p>
+            </div>
+            
+            <div style="margin-bottom: 24px;">
+                <h4 style="font-size: 0.875rem; color: var(--gray-500); margin-bottom: 8px;">ОПИСАНИЕ</h4>
+                <p>${task.description}</p>
+            </div>
+            
+            <div style="margin-bottom: 24px;">
+                <h4 style="font-size: 0.875rem; color: var(--gray-500); margin-bottom: 8px;">ФОТО ПРОБЛЕМЫ</h4>
+                <img src="${task.photos?.[0]?.url || "https://via.placeholder.com/400x300?text=Фото+проблемы"}" 
+                     style="width: 100%; max-height: 300px; object-fit: cover; border-radius: 12px;">
+            </div>
+        `;
+
+    // Если задача в работе — показываем таймер, фотоотчёт, заметки
+    if (task.status === "in_progress") {
+      html += `
+                <div style="margin-bottom: 24px;">
+                    <h4 style="font-size: 0.875rem; color: var(--gray-500); margin-bottom: 16px;">⏱️ УЧЁТ ВРЕМЕНИ</h4>
+                    <div class="timer-container">
+                        <span class="timer-display" id="taskTimer">00:00:00</span>
+                        <div class="timer-controls">
+                            <button id="pauseResumeBtn" onclick="toggleTimer()" class="btn btn-secondary btn-small">⏸ Пауза</button>
+                            <button onclick="completeTask(${task.id})" class="btn btn-success btn-small">✅ Завершить</button>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div style="margin-bottom: 24px;">
+                    <h4 style="font-size: 0.875rem; color: var(--gray-500); margin-bottom: 16px;">📸 ФОТООТЧЁТ</h4>
+                    <div class="photo-report">
+                        <div class="photo-column">
+                            <div class="photo-label">
+                                <span>До начала работ</span>
+                                <span class="required-badge">обязательно</span>
+                            </div>
+                            <div class="upload-box" onclick="triggerUpload('before', ${task.id})">
+                                <span class="upload-icon">📷</span>
+                                <span class="upload-text">Загрузить фото</span>
+                            </div>
+                            <div id="beforePreview" class="photo-preview">
+                                <img src="https://via.placeholder.com/200x150?text=Фото+До" style="width: 100%; height: 100px; object-fit: cover; border-radius: 8px;">
+                            </div>
+                        </div>
+                        <div class="photo-column">
+                            <div class="photo-label">
+                                <span>После выполнения</span>
+                                <span class="required-badge">обязательно</span>
+                            </div>
+                            <div class="upload-box" onclick="triggerUpload('after', ${task.id})">
+                                <span class="upload-icon">📷</span>
+                                <span class="upload-text">Загрузить фото</span>
+                            </div>
+                            <div id="afterPreview" class="photo-preview empty">
+                                Нет фото
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 24px;">
+                    <h4 style="font-size: 0.875rem; color: var(--gray-500); margin-bottom: 8px;">📝 ЗАМЕТКИ</h4>
+                    <textarea id="workNotes" class="notes-input" placeholder="Добавьте заметки о выполненной работе..."></textarea>
+                </div>
+            `;
+    } else if (task.status === "assigned") {
+      // Задача назначена, но не начата — показываем кнопку старта
+      html += `
+                <button onclick="startWork(${task.id})" class="btn btn-success btn-large" style="width: 100%; margin-top: 16px;">
+                    ▶ Начать работу
+                </button>
+            `;
+    } else {
+      // Для других статусов (например, completed) показываем информацию
+      html += `
+                <div class="status-info">
+                    <p>Статус задачи: <strong>${getStatusText(task.status)}</strong></p>
+                    ${
+                      task.status === "completed" 
+                        ? '<p>Задача уже выполнена и находится на проверке у гражданина.</p>' 
+                        : `<p>Задача находится в статусе "${getStatusText(task.status)}".</p>`
+                    }
+                </div>
+            `;
+    }
+
+    taskDetail.innerHTML = html;
+    
+    // Инициализируем таймер, если задача в процессе выполнения
+    if (task.status === "in_progress") {
+      // Сбрасываем таймер к начальному состоянию
+      timerSeconds = 0;
+      isTimerPaused = false;
+      
+      // Обновляем отображение таймера
+      const timerElement = document.getElementById("taskTimer");
+      if (timerElement) {
+        timerElement.textContent = "00:00:00";
+      }
+      
+      // Обновляем кнопку на "Пауза"
+      const pauseResumeBtn = document.getElementById("pauseResumeBtn");
+      if (pauseResumeBtn) {
+        pauseResumeBtn.innerHTML = "⏸ Пауза";
+      }
+      
+      // Запускаем таймер
+      startTimer();
+    }
+  } catch (error) {
+    console.error("Error loading task detail:", error);
+    taskDetail.innerHTML =
+      '<div class="text-center" style="padding: 40px; color: var(--danger);">❌ Ошибка загрузки деталей задачи</div>';
+  }
+}
+
+/**
+ * Начать работу над задачей
+ * @param {number} taskId - ID задачи
+ */
+async function startWork(taskId) {
+  try {
+    // Получаем актуальные данные задачи с сервера перед изменением статуса
+    const responseCurrent = await fetch(`/api/requests/${taskId}`, {
+      headers: getAuthHeaders()
+    });
+    
+    if (!responseCurrent.ok) {
+      throw new Error("Не удалось получить актуальные данные задачи");
+    }
+    
+    const currentTask = await responseCurrent.json();
+    
+    // Проверяем, что задача действительно назначена этому работнику
+    const currentUser = getCurrentUser();
+    if (currentTask.assigned_worker_id !== currentUser.id) {
+      throw new Error("Эта задача не назначена вам");
+    }
+    
+    // Проверяем, можно ли начать работу над задачей с текущим статусом
+    if (currentTask.status !== "assigned") {
+      throw new Error(`Невозможно начать работу над задачей со статусом "${getStatusText(currentTask.status)}"`);
+    }
+
+    // Отправляем запрос на сервер для изменения статуса
+    const response = await fetch(`/api/requests/${taskId}/status`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ status: 'in_progress' })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text(); // Use text() first to see raw response
+      let errorMessage = 'Ошибка при начале работы';
+      
+      try {
+        // Try to parse as JSON if possible
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.message || errorData.error?.message || errorMessage;
+      } catch (e) {
+        // If not JSON, use the raw text or default message
+        errorMessage = errorText || errorMessage;
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    // Обновляем статус задачи в локальном массиве
+    const task = currentTasks.find((t) => t.id === taskId);
+    if (task) {
+      task.status = "in_progress";
+    }
+
+    // Перезагружаем список задач
+    loadTasks(document.getElementById("taskStatusFilter").value);
+
+    // После перезагрузки задач, снова ищем задачу в обновленном списке
+    // и показываем детали с таймером
+    setTimeout(async () => {
+      await showTaskDetail(taskId);
+    }, 300); // Небольшая задержка для обновления UI
+
+    alert("✅ Работа начата!");
+  } catch (error) {
+    console.error("Error starting work:", error);
+    alert(`❌ Ошибка при начале работы: ${error.message}`);
+  }
+}
+
+/**
+ * Завершить задачу
+ * @param {number} taskId - ID задачи
+ */
+async function completeTask(taskId) {
+  // Проверяем, загружено ли фото "после"
+  const afterPreview = document.getElementById("afterPreview");
+  if (!afterPreview || afterPreview.classList.contains("empty")) {
+    alert('❌ Необходимо загрузить фото "После выполнения"');
+    return;
+  }
+
+  const notes = document.getElementById("workNotes")?.value || "";
+
+  try {
+    // Отправляем запрос на сервер для изменения статуса
+    const response = await fetch(`/api/requests/${taskId}/status`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ status: 'completed' })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Ошибка при завершении задачи');
+    }
+
+    // Обновляем статус задачи в локальном массиве
+    const task = currentTasks.find((t) => t.id === taskId);
+    if (task) {
+      task.status = "completed";
+    }
+
+    // Останавливаем таймер
+    stopTimer();
+
+    // Обновляем список
+    loadTasks(document.getElementById("taskStatusFilter").value);
+
+    // Показываем заглушку в деталях
+    document.getElementById("taskDetail").innerHTML =
+      '<div class="text-center" style="padding: 40px;">✅ Задача завершена и отправлена на проверку</div>';
+
+    // Обновляем статистику исполнителя
+    updateWorkerStats();
+
+    alert("✅ Задача успешно завершена!");
+  } catch (error) {
+    console.error("Error completing task:", error);
+    alert(`❌ Ошибка при завершении задачи: ${error.message}`);
+  }
+}
+
+/**
+ * Триггер загрузки фото
+ * @param {string} type - Тип фото (before/after)
+ * @param {number} taskId - ID задачи
+ */
+function triggerUpload(type, taskId) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/jpeg,image/png";
+  input.onchange = function (e) {
+    if (e.target.files.length > 0) {
+      uploadPhoto(taskId, type, e.target.files[0]);
+    }
+  };
+  input.click();
+}
+
+/**
+ * Загрузить фото
+ * @param {number} taskId - ID задачи
+ * @param {string} type - Тип фото
+ * @param {File} file - Файл изображения
+ */
+async function uploadPhoto(taskId, type, file) {
+  if (!file) return;
+
+  if (file.size > 5 * 1024 * 1024) {
+    alert("Файл слишком большой. Максимум 5MB");
+    return;
+  }
+
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const previewId = type === "before" ? "beforePreview" : "afterPreview";
+      const preview = document.getElementById(previewId);
+
+      if (preview) {
+        preview.innerHTML = `<img src="${e.target.result}" style="width: 100%; height: 100px; object-fit: cover; border-radius: 8px;">`;
+        preview.classList.remove("empty");
+      }
+    };
+    reader.readAsDataURL(file);
+
+    alert(`✅ Фото "${type === "before" ? "До" : "После"}" загружено`);
+  } catch (error) {
+    console.error("Error uploading photo:", error);
+    alert("❌ Ошибка загрузки фото");
+  }
+}
+
+/**
+ * Инициализация карты
+ */
+function initMap() {
+  map = L.map("map").setView([51.18, 71.45], 12);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap contributors",
+  }).addTo(map);
+
+  markersLayer = L.markerClusterGroup();
+  map.addLayer(markersLayer);
+}
+
+/**
+ * Добавить маркеры задач на карту
+ * @param {Array} tasks - Массив задач
+ */
+function addTaskMarkers(tasks) {
+  if (!map || !markersLayer) return;
+
+  markersLayer.clearLayers();
+
+  tasks.forEach((task) => {
+    const lat = task.latitude || 51.18 + (Math.random() - 0.5) * 0.1;
+    const lng = task.longitude || 71.45 + (Math.random() - 0.5) * 0.1;
+
+    // Цвет маркера по приоритету
+    let markerColor = "#2563EB";
+    if (task.priority === "urgent") markerColor = "#EF4444";
+    if (task.priority === "high") markerColor = "#F59E0B";
+    if (task.priority === "medium") markerColor = "#3B82F6";
+
+    const markerIcon = L.divIcon({
+      html: `<div style="background: ${markerColor}; width: 12px; height: 12px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.2);"></div>`,
+      className: "custom-marker",
+      iconSize: [18, 18],
+      popupAnchor: [0, -9],
+    });
+
+    const marker = L.marker([lat, lng], { icon: markerIcon });
+    marker.bindPopup(`
+            <b>Задача #${task.id}</b><br>
+            ${task.description.substring(0, 50)}<br>
+            <span style="color: ${markerColor};">● ${getPriorityText(task.priority)}</span>
+        `);
+
+    markersLayer.addLayer(marker);
+  });
+}
+
+/**
+ * Запустить таймер
+ */
+function startTimer() {
+  timerSeconds = 0; // Начинаем с 00:00:00
+  updateTimerDisplay();
+
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    timerSeconds++;
+    updateTimerDisplay();
+  }, 1000);
+}
+
+/**
+ * Остановить таймер
+ */
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+}
+
+/**
+ * Toggle timer between pause and resume
+ */
+let isTimerPaused = false;
+let pausedTime = 0;
+
+function toggleTimer() {
+  const pauseResumeBtn = document.getElementById('pauseResumeBtn');
+  
+  if (timerInterval) {
+    // Таймер запущен, нужно поставить на паузу
+    clearInterval(timerInterval);
+    timerInterval = null;
+    isTimerPaused = true;
+    pausedTime = timerSeconds; // Сохраняем текущее время
+    
+    // Обновляем текст кнопки на "Возобновить"
+    if (pauseResumeBtn) {
+      pauseResumeBtn.innerHTML = '▶️ Возобновить';
+    }
+  } else if (isTimerPaused) {
+    // Таймер на паузе, нужно возобновить
+    isTimerPaused = false;
+    
+    timerSeconds = pausedTime; // Восстанавливаем сохраненное время
+    
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      timerSeconds++;
+      updateTimerDisplay();
+    }, 1000);
+    
+    // Обновляем текст кнопки на "Пауза"
+    if (pauseResumeBtn) {
+      pauseResumeBtn.innerHTML = '⏸ Пауза';
+    }
+  }
+}
+
+/**
+ * Пауза таймера (для совместимости)
+ */
+function pauseTimer() {
+  toggleTimer();
+}
+
+/**
+ * Обновить отображение таймера
+ */
+function updateTimerDisplay() {
+  const timerElement = document.getElementById("taskTimer");
+  if (!timerElement) return;
+
+  const hours = Math.floor(timerSeconds / 3600);
+  const minutes = Math.floor((timerSeconds % 3600) / 60);
+  const seconds = timerSeconds % 60;
+
+  timerElement.textContent = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+}
+
+
+/**
+ * Получить текст статуса
+ */
+function getStatusText(status) {
+  const map = {
+    assigned: "Назначено",
+    in_progress: "В работе",
+    completed: "Выполнено",
+  };
+  return map[status] || status;
+}
+
+// Экспорт функций в глобальную область
+window.initWorkerPage = initWorkerPage;
+window.loadTasks = loadTasks;
+window.selectTask = selectTask;
+window.startWork = startWork;
+window.completeTask = completeTask;
+window.triggerUpload = triggerUpload;
+window.pauseTimer = pauseTimer;

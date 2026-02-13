@@ -46,6 +46,16 @@ app.use((err, req, res, next) => {
 });
 
 
+// Serve static files from the dist directory in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../dist')));
+  
+  // Serve index.html for all non-API routes
+  app.get(/^(?!\/api).*$/, (req, res) => {
+    res.sendFile(path.join(__dirname, '../dist', 'index.html'));
+  });
+}
+
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📁 Frontend: http://localhost:${PORT}`);

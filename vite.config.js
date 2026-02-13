@@ -35,6 +35,14 @@ export default defineConfig({
         login: resolve(__dirname, 'frontend/login.html'),
         register: resolve(__dirname, 'frontend/register.html'),
       },
+      output: {
+        entryFileNames: 'assets/[name].js',
+        chunkFileNames: 'assets/[name].[hash].js',
+        assetFileNames: 'assets/[name].[hash].[ext]'
+      }
     },
   },
+  define: {
+    'process.env': {}
+  }
 });

@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: core-city-platform
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_HOST
+        fromDatabase: corecity-db
+      - key: DB_PORT
+        value: 5432
+      - key: DB_NAME
+        fromDatabase: corecity-db
+      - key: DB_USER
+        fromDatabase: corecity-db
+      - key: DB_PASSWORD
+        fromDatabase: corecity-db
+      - key: JWT_SECRET
+        generateValue: true
+databases:
+  - name: corecity-db
+    region: singapore  # or nearest region
+    plan: free

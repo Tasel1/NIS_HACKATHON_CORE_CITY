@@ -12,7 +12,8 @@
     "backend:dev": "cd backend && nodemon server.js",
     "frontend": "vite",
     "setup": "npm install && cd backend && npm install",
-    "postinstall": "cd backend && npm install"
+    "postinstall": "cd backend && npm install",
+    "start": "node backend/server.js"
   },
   "keywords": [
     "civic-engagement",
@@ -29,6 +30,7 @@
     "vite": "^7.3.1"
   },
   "dependencies": {
-    "dotenv": "^17.2.4"
+    "dotenv": "^17.2.4",
+    "express": "^5.2.1"
   }
 }
