@@ -1,4 +1,33 @@
 {
+  "name": "core-city-platform",
+  "version": "1.0.0",
+  "description": "A civic engagement platform for reporting and resolving urban issues",
+  "main": "backend/server.js",
+  "scripts": {
+    "dev": "concurrently \"npm run backend:dev\" \"vite\"",
+    "dev:vite": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "backend": "cd backend && node server.js",
+    "backend:dev": "cd backend && nodemon server.js",
+    "frontend": "vite",
+    "setup": "npm install && cd backend && npm install",
+    "postinstall": "cd backend && npm install"
+  },
+  "keywords": [
+    "civic-engagement",
+    "urban-management",
+    "issue-tracking",
+    "smart-city"
+  ],
+  "author": "NIS Hackathon Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "nodemon": "^3.1.11",
+    "serve": "^14.2.1",
+    "vite": "^7.3.1"
+  },
   "dependencies": {
     "dotenv": "^17.2.4"
   }

@@ -125,57 +125,78 @@ Request.updateStatus = async (id, status, userId) => {
   values.push(id);
 
   const result = await db.query(query, values);
+  
+  if (result.rows.length === 0) {
+    throw new Error('Request not found');
+  }
+  
   const updatedRequest = result.rows[0];
 
-  // Создаём уведомление для заявителя
-  await db.query(
-    `INSERT INTO notifications (user_id, request_id, message, type)
-     VALUES ($1, $2, $3, $4)`,
-    [
-      updatedRequest.citizen_id,
-      id,
-      `Статус вашей заявки #${id} изменён на "${status}"`,
-      "status_update",
-    ],
-  );
+  // Создаём уведомление для заявителя (только если citizen_id существует)
+  if (updatedRequest.citizen_id) {
+    await db.query(
+      `INSERT INTO notifications (user_id, request_id, message, type)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        updatedRequest.citizen_id,
+        id,
+        `Статус вашей заявки #${id} изменён на "${status}"`,
+        "status_update",
+      ],
+    );
+  }
 
   return updatedRequest;
 };
 
 // --- 5. НАЗНАЧЕНИЕ ИСПОЛНИТЕЛЯ ---
 Request.assignWorker = async (id, workerId, deadline) => {
+  // Ensure deadline is properly handled (can be null)
+  const deadlineValue = deadline || null;
+  
   const result = await db.query(
-    `UPDATE requests 
+    `UPDATE requests
      SET assigned_worker_id = $1, status = 'assigned', deadline = $2, assigned_at = NOW(), updated_at = NOW()
      WHERE id = $3
      RETURNING *`,
-    [workerId, deadline, id],
+    [workerId, deadlineValue, id],
   );
+  
+  if (result.rows.length === 0) {
+    throw new Error('Request not found');
+  }
+  
   const updatedRequest = result.rows[0];
 
-  // Уведомление для исполнителя
-  await db.query(
-    `INSERT INTO notifications (user_id, request_id, message, type)
-     VALUES ($1, $2, $3, $4)`,
-    [
-      workerId,
-      id,
-      `Вам назначена заявка #${id}. Срок выполнения: ${deadline || "не указан"}`,
-      "assignment",
-    ],
-  );
+  // Check if the worker exists before creating notification
+  const workerExists = await db.query('SELECT id FROM users WHERE id = $1', [workerId]);
+  if (workerExists.rows.length > 0) {
+    // Уведомление для исполнителя
+    await db.query(
+      `INSERT INTO notifications (user_id, request_id, message, type)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        workerId,
+        id,
+        `Вам назначена заявка #${id}. Срок выполнения: ${deadlineValue || "не указан"}`,
+        "assignment",
+      ],
+    );
+  }
 
-  // Уведомление для заявителя
-  await db.query(
-    `INSERT INTO notifications (user_id, request_id, message, type)
-     VALUES ($1, $2, $3, $4)`,
-    [
-      updatedRequest.citizen_id,
-      id,
-      `Вашей заявке #${id} назначен исполнитель`,
-      "assignment",
-    ],
-  );
+  // Check if the citizen exists before creating notification
+  if (updatedRequest.citizen_id) {
+    await db.query(
+      `INSERT INTO notifications (user_id, request_id, message, type)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        updatedRequest.citizen_id,
+        id,
+        `Вашей заявке #${id} назначен исполнитель`,
+        "assignment",
+      ],
+    );
+  }
 
   return updatedRequest;
 };

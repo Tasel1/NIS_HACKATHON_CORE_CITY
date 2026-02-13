@@ -5,7 +5,7 @@ const cors = require("cors");
 const path = require("path");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001; // Changed to 3001 to avoid conflict with Vite dev server
 
 // 1. CORS – разрешаем запросы с любого источника (нужно для разработки)
 app.use(cors());
@@ -26,6 +26,7 @@ app.use("/api/auth", require("./routes/auth"));
 app.use("/api/requests", require("./routes/requests")); // или requestRoutes
 app.use("/api/photos", require("./routes/photos")); // или photoRoutes
 app.use("/api/analytics", require("./routes/analytics")); // или analyticsRoutes
+app.use("/api/users", require("./routes/users")); // для управления пользователями
 
 
 app.get("/api/health", (req, res) => {

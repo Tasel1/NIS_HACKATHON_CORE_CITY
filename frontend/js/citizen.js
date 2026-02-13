@@ -32,15 +32,9 @@ async function loadMyRequests(filter = "all") {
     '<div class="text-center" style="grid-column: 1/-1; padding: 48px;">⏳ Загрузка заявок...</div>';
 
   try {
-    // Получаем текущего пользователя
-    const user = getCurrentUser();
-    if (!user) return;
-
     // Запрос к API для получения заявок
     const response = await fetch('/api/requests', {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
+      headers: getAuthHeaders()
     });
 
     if (!response.ok) {
@@ -59,29 +53,8 @@ async function loadMyRequests(filter = "all") {
     renderRequests(filteredRequests);
   } catch (error) {
     console.error("Error loading requests:", error);
-    
-    // В случае ошибки используем мок-данные как fallback
-    try {
-      // Получаем текущего пользователя
-      const user = getCurrentUser();
-      if (!user) return;
-
-      // Мок-данные для демонстрации
-      allRequests = getMockRequests(user.id);
-
-      // Применяем фильтр
-      let filteredRequests = allRequests;
-      if (filter !== "all") {
-        filteredRequests = allRequests.filter((req) => req.status === filter);
-      }
-
-      // Рендерим карточки
-      renderRequests(filteredRequests);
-    } catch (fallbackError) {
-      console.error("Fallback also failed:", fallbackError);
-      requestsList.innerHTML =
-        '<div class="text-center" style="grid-column: 1/-1; padding: 48px; color: var(--danger);">❌ Ошибка загрузки заявок</div>';
-    }
+    requestsList.innerHTML =
+      '<div class="text-center" style="grid-column: 1/-1; padding: 48px; color: var(--danger);">❌ Ошибка загрузки заявок</div>';
   }
 }
 
@@ -532,16 +505,23 @@ function initRequestForm() {
       formData.append('address', address);
       formData.append('lat', lat);
       formData.append('lng', lng);
-      formData.append('photo', photo); // Добавляем фото в FormData
-      
+      formData.append('photos', photo); // Добавляем фото в FormData
+
       // Отправка запроса на сервер
+      // Note: When using FormData, we don't set Content-Type header as the browser sets it automatically
+      // with the proper boundary. We only need to set the Authorization header.
       const response = await fetch('/api/requests', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${getToken()}`
         },
         body: formData
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Ошибка при создании заявки');
+      }
 
       // Очищаем форму
       form.reset();
@@ -552,46 +532,10 @@ function initRequestForm() {
       // Обновляем список - загружаем все заявки с сервера
       loadMyRequests(currentFilter);
 
-      if (response.ok) {
-        alert("✅ Заявка успешно отправлена!");
-      } else {
-        console.warn("API call failed, but request may have been created");
-        alert("✅ Заявка успешно отправлена!");
-      }
+      alert("✅ Заявка успешно отправлена!");
     } catch (error) {
       console.error("Error creating request:", error);
-      
-      // В случае ошибки используем локальное добавление как fallback
-      try {
-        // Создаём новую заявку в мок-данных
-        const user = getCurrentUser();
-        const newRequest = {
-          id: Date.now(),
-          citizen_id: user.id,
-          category: category,
-          description: description,
-          address: address,
-          latitude: parseFloat(lat),
-          longitude: parseFloat(lng),
-          status: "pending",
-          created_at: new Date().toISOString(),
-          photos: [{ url: URL.createObjectURL(photo) }],
-        };
-
-        // Очищаем форму
-        form.reset();
-        preview.style.display = "none";
-        preview.innerHTML = "";
-        counter.textContent = "0";
-
-        // Обновляем список
-        loadMyRequests(currentFilter);
-
-        alert("✅ Заявка успешно отправлена!");
-      } catch (fallbackError) {
-        console.error("Fallback also failed:", fallbackError);
-        alert("❌ Ошибка при отправке заявки");
-      }
+      alert(`❌ Ошибка при отправке заявки: ${error.message}`);
     } finally {
       submitBtn.textContent = "📨 Отправить заявку";
       submitBtn.disabled = false;
@@ -640,49 +584,6 @@ async function reverseGeocode(lat, lng) {
   }
 }
 
-/**
- * Мок-данные для демонстрации
- */
-function getMockRequests(userId) {
-  return [
-    {
-      id: 1001,
-      citizen_id: userId,
-      category: "lighting",
-      description: "Не горит фонарь на углу дома 15, очень темно и небезопасно",
-      address: "ул. Ленина, д. 15",
-      latitude: 51.18,
-      longitude: 71.45,
-      status: "pending",
-      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      photos: [{ url: "https://via.placeholder.com/300x200?text=Фонарь" }],
-    },
-    {
-      id: 1002,
-      citizen_id: userId,
-      category: "pothole",
-      description: "Глубокая яма во дворе, машины задевают дно",
-      address: "ул. Пушкина, д. 10",
-      latitude: 51.19,
-      longitude: 71.46,
-      status: "in_progress",
-      created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      photos: [{ url: "https://via.placeholder.com/300x200?text=Яма" }],
-    },
-    {
-      id: 1003,
-      citizen_id: userId,
-      category: "garbage",
-      description: "Не вывозят мусор уже неделю, контейнеры переполнены",
-      address: "пр. Мира, д. 5",
-      latitude: 51.17,
-      longitude: 71.44,
-      status: "completed",
-      created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      photos: [{ url: "https://via.placeholder.com/300x200?text=Мусор" }],
-    },
-  ];
-}
 
 // Экспорт функций в глобальную область
 window.initCitizenPage = initCitizenPage;

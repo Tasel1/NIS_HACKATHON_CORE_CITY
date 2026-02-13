@@ -5,6 +5,8 @@
   min-height: calc(100vh - 64px);
   background: var(--gray-50);
   margin-top: 64px;
+  position: relative; /* Ensure proper stacking context */
+  z-index: 1;
 }
 
 /* ===== САЙДБАР ===== */
@@ -44,6 +46,7 @@
   padding: 24px 20px 24px 20px;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.02);
   transition: all 0.3s ease;
+  z-index: 900; /* Lower z-index to ensure modals appear above */
 }
 
 .admin-sidebar.collapsed {
@@ -81,6 +84,8 @@
   padding: 24px;
   min-height: calc(100vh - 64px);
   transition: margin-left 0.3s ease;
+  position: relative; /* Establish proper stacking context */
+  z-index: 1; /* Lower than modals */
 }
 
 .admin-main.sidebar-collapsed {
@@ -92,7 +97,7 @@
   position: fixed;
   bottom: 30px;
   right: 30px;
-  z-index: 1000;
+  z-index: 950; /* Lower than modal z-index but higher than most elements */
   background: linear-gradient(135deg, #2563eb, #1e40af);
   color: white;
   border: none;

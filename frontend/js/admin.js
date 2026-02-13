@@ -31,19 +31,25 @@ async function loadDashboard() {
   showSkeletons();
 
   try {
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    // Запрос к API для получения данных дашборда
+    const response = await fetch('/api/analytics/dashboard', {
+      headers: getAuthHeaders()
+    });
 
-    // Мок-данные для дашборда
-    dashboardData = getMockDashboardData();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    dashboardData = await response.json();
 
     // Обновляем KPI карточки
     document.getElementById("stat-total").textContent =
-      dashboardData.total_requests.toLocaleString();
+      dashboardData.total.toLocaleString();
     document.getElementById("stat-in-progress").textContent =
       dashboardData.in_progress;
     document.getElementById("stat-completed-today").textContent =
       dashboardData.completed_today;
-    document.getElementById("stat-overdue").textContent = dashboardData.overdue;
+    document.getElementById("stat-overdue").textContent = dashboardData.overdue || 0;
 
     // Рендерим графики
     renderCharts(dashboardData);
@@ -82,7 +88,7 @@ function hideSkeletons() {
 function renderCharts(data) {
   // Графики теперь отображаются как статические изображения
   // Обновляем src изображений с актуальными данными
-  updateStaticCharts(data);
+  updateStaticCharts(data || {});
 }
 
 /**
@@ -92,15 +98,23 @@ function renderCharts(data) {
 function updateStaticCharts(data) {
   // Обновляем изображение графика категорий
   const categoryImg = document.getElementById('chart-categories-img');
-  if (categoryImg) {
-    const lighting = data.requests_by_category.lighting;
-    const pothole = data.requests_by_category.pothole;
-    const garbage = data.requests_by_category.garbage;
-    const other = data.requests_by_category.other;
+  if (categoryImg && data.by_category) {
+    // Safely extract category data
+    const categoriesMap = {};
+    if (Array.isArray(data.by_category)) {
+      data.by_category.forEach(cat => {
+        categoriesMap[cat.category] = cat.count || 0;
+      });
+    }
     
+    const lighting = categoriesMap.lighting || 0;
+    const pothole = categoriesMap.pothole || 0;
+    const garbage = categoriesMap.garbage || 0;
+    const other = categoriesMap.other || 0;
+
     const maxVal = Math.max(lighting, pothole, garbage, other);
     const maxY = Math.ceil(maxVal * 1.2);
-    
+
     // Создаем объект конфигурации диаграммы
     const chartConfig = {
       type: 'bar',
@@ -133,22 +147,30 @@ function updateStaticCharts(data) {
         }
       }
     };
-    
+
     // Кодируем конфигурацию в формат URL
     const configJson = JSON.stringify(chartConfig);
     const encodedConfig = encodeURIComponent(configJson);
-    
+
     categoryImg.src = `https://quickchart.io/chart?width=600&height=400&chart=${encodedConfig}`;
   }
-  
+
   // Обновляем изображение графика аналитики
   const analyticsImg = document.getElementById('analytics-performance-img');
-  if (analyticsImg) {
-    const lighting = data.requests_by_category.lighting;
-    const pothole = data.requests_by_category.pothole;
-    const garbage = data.requests_by_category.garbage;
-    const other = data.requests_by_category.other;
+  if (analyticsImg && data.by_category) {
+    // Safely extract category data
+    const categoriesMap = {};
+    if (Array.isArray(data.by_category)) {
+      data.by_category.forEach(cat => {
+        categoriesMap[cat.category] = cat.count || 0;
+      });
+    }
     
+    const lighting = categoriesMap.lighting || 0;
+    const pothole = categoriesMap.pothole || 0;
+    const garbage = categoriesMap.garbage || 0;
+    const other = categoriesMap.other || 0;
+
     // Создаем объект конфигурации диаграммы для аналитики
     const analyticsConfig = {
       type: 'bar',
@@ -197,11 +219,11 @@ function updateStaticCharts(data) {
         }
       }
     };
-    
+
     // Кодируем конфигурацию в формат URL
     const analyticsJson = JSON.stringify(analyticsConfig);
     const encodedAnalytics = encodeURIComponent(analyticsJson);
-    
+
     analyticsImg.src = `https://quickchart.io/chart?width=600&height=400&chart=${encodedAnalytics}`;
   }
 }
@@ -211,9 +233,21 @@ function updateStaticCharts(data) {
  */
 async function initHotspotMap() {
   try {
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    const response = await fetch('/api/analytics/hotspots', {
+      headers: getAuthHeaders()
+    });
 
-    const hotspots = getMockHotspots();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const hotspots = await response.json();
+
+    // Check if hotspots exist and have proper data
+    if (!hotspots || !Array.isArray(hotspots) || hotspots.length === 0) {
+      console.warn("No hotspot data available");
+      return;
+    }
 
     hotspotMap = L.map("hotspot-map").setView([51.18, 71.45], 11);
 
@@ -221,23 +255,34 @@ async function initHotspotMap() {
       attribution: "© OpenStreetMap contributors",
     }).addTo(hotspotMap);
 
-    // Тепловая карта
-    const heatData = hotspots.map((h) => [h.lat, h.lng, h.count / 5]);
-    L.heatLayer(heatData, {
-      radius: 30,
-      blur: 20,
-      maxZoom: 17,
-      gradient: {
-        0.2: "#3B82F6",
-        0.4: "#F59E0B",
-        0.6: "#EF4444",
-      },
-    }).addTo(hotspotMap);
+    // Prepare heat data, ensuring valid coordinates
+    const heatData = hotspots
+      .filter(h => h.lat && h.lng && !isNaN(parseFloat(h.lat)) && !isNaN(parseFloat(h.lng)))
+      .map((h) => [parseFloat(h.lat), parseFloat(h.lng), (h.count || 1) / 5]);
+
+    // Only add heat layer if there's valid data
+    if (heatData.length > 0) {
+      L.heatLayer(heatData, {
+        radius: 30,
+        blur: 20,
+        maxZoom: 17,
+        gradient: {
+          0.2: "#3B82F6",
+          0.4: "#F59E0B",
+          0.6: "#EF4444",
+        },
+      }).addTo(hotspotMap);
+    }
 
     // Кластеризованные маркеры
     const markers = L.markerClusterGroup();
 
     hotspots.forEach((h) => {
+      // Validate coordinates before creating markers
+      if (!h.lat || !h.lng || isNaN(parseFloat(h.lat)) || isNaN(parseFloat(h.lng))) {
+        return; // Skip invalid coordinates
+      }
+
       let color = "#3B82F6";
       if (h.count > 10) color = "#EF4444";
       else if (h.count > 5) color = "#F59E0B";
@@ -249,11 +294,11 @@ async function initHotspotMap() {
         popupAnchor: [0, -11],
       });
 
-      const marker = L.marker([h.lat, h.lng], { icon: markerIcon });
+      const marker = L.marker([parseFloat(h.lat), parseFloat(h.lng)], { icon: markerIcon });
       marker.bindPopup(`
                 <b>Горячая точка</b><br>
-                Обращений: ${h.count}<br>
-                Категория: ${h.category}
+                Обращений: ${h.count || 0}<br>
+                Категория: ${h.category || 'Неизвестно'}
             `);
 
       markers.addLayer(marker);
@@ -301,12 +346,18 @@ async function loadRequests() {
     '<tr><td colspan="9" style="text-align: center; padding: 48px;">⏳ Загрузка заявок...</td></tr>';
 
   try {
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    const response = await fetch('/api/requests', {
+      headers: getAuthHeaders()
+    });
 
-    requestsData = getMockRequests();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    requestsData = await response.json();
 
     renderRequestsTable(requestsData);
-    
+
     // Сброс фильтров к начальному состоянию
     if (document.getElementById('requestStatusFilter')) {
       document.getElementById('requestStatusFilter').value = '';
@@ -379,9 +430,15 @@ async function loadWorkers() {
     '<tr><td colspan="6" style="text-align: center; padding: 48px;">⏳ Загрузка данных...</td></tr>';
 
   try {
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    const response = await fetch('/api/analytics/workers', {
+      headers: getAuthHeaders()
+    });
 
-    workersData = getMockWorkers();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    workersData = await response.json();
 
     renderWorkersTable(workersData);
   } catch (error) {
@@ -412,15 +469,36 @@ function renderWorkersTable(workers) {
                 <span style="width: 32px; height: 32px; background: var(--gray-200); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
                     ${w.avatar || "👨‍🔧"}
                 </span>
-                ${w.name}
+                ${w.full_name || w.name || w.email || "Исполнитель"}
             </td>
-            <td>${w.total_assigned}</td>
-            <td>${w.total_completed}</td>
-            <td><span style="color: ${w.completion_rate > 90 ? "#10B981" : "#F59E0B"}; font-weight: 600;">${w.completion_rate}%</span></td>
-            <td>${w.avg_time} ч</td>
+            <td>${w.assigned_count || w.total_assigned || 0}</td>
+            <td>${w.completed_count || w.total_completed || 0}</td>
+            <td><span style="color: ${((w.completion_rate || 0) > 90 ? "#10B981" : "#F59E0B")}; font-weight: 600;">${w.completion_rate || 0}%</span></td>
+            <td>${w.avg_time_minutes || w.avg_time || 0} мин</td>
             <td>
-                <span style="color: #FFB800;">${"★".repeat(Math.floor(w.rating))}${"☆".repeat(5 - Math.floor(w.rating))}</span>
-                <span style="margin-left: 4px; font-weight: 600;">${w.rating.toFixed(1)}</span>
+                ${(() => {
+                  // Handle the rating field properly
+                  let ratingValue = 0;
+                  if (w.rating != null && !isNaN(parseFloat(w.rating))) {
+                    ratingValue = parseFloat(w.rating);
+                  } else if (w.completion_rate != null && !isNaN(parseFloat(w.completion_rate))) {
+                    // Calculate a rating based on completion rate if rating is not available
+                    ratingValue = Math.min(5, Math.max(0, parseFloat(w.completion_rate) / 20)); // Scale 0-100% to 0-5 stars
+                  }
+                  
+                  // Ensure ratingValue is a valid number
+                  if (isNaN(ratingValue) || typeof ratingValue !== 'number') {
+                    ratingValue = 0;
+                  }
+                  
+                  const ratingFloor = Math.max(0, Math.min(5, Math.floor(ratingValue)));
+                  const stars = "★".repeat(ratingFloor);
+                  const emptyStars = "☆".repeat(Math.max(0, 5 - ratingFloor));
+                  return `
+                  <span style="color: #FFB800;">${stars}${emptyStars}</span>
+                  <span style="margin-left: 4px; font-weight: 600;">${ratingValue.toFixed(1)}</span>
+                  `;
+                })()}
             </td>
         </tr>
     `,
@@ -480,21 +558,48 @@ function sortData(data, column, direction) {
  * Открыть модальное окно назначения исполнителя
  * @param {number} requestId - ID заявки
  */
-function openAssignModal(requestId) {
+async function openAssignModal(requestId) {
   const modal = document.getElementById("assignModal");
   const content = document.getElementById("assignModalContent");
 
-  // Получаем список доступных исполнителей
-  const availableWorkers = workersData.length ? workersData : getMockWorkers();
-
+  // Показываем индикатор загрузки
   content.innerHTML = `
+        <div style="margin-bottom: 20px;">
+            <p><strong>Заявка #${requestId || "1001"}</strong></p>
+            <p style="color: var(--gray-500); font-size: 0.875rem; margin-top: 4px;">
+                Загрузка списка исполнителей...
+            </p>
+        </div>
+        <div style="text-align: center; padding: 20px;">⏳</div>
+    `;
+
+  modal.style.display = "flex";
+
+  try {
+    // Загружаем список исполнителей (пользователей с ролью worker)
+    const response = await fetch('/api/users?role=worker', {
+      headers: getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const workers = await response.json();
+    
+    // Фильтруем только пользователей с ролью worker
+    const availableWorkers = Array.isArray(workers) ? 
+      workers.map(w => ({ id: w.id, name: w.full_name || w.email })) : 
+      [];
+
+    content.innerHTML = `
         <div style="margin-bottom: 20px;">
             <p><strong>Заявка #${requestId || "1001"}</strong></p>
             <p style="color: var(--gray-500); font-size: 0.875rem; margin-top: 4px;">
                 Выберите исполнителя для назначения
             </p>
         </div>
-        
+
         <div class="form-group">
             <label for="workerSelect">Исполнитель</label>
             <select id="workerSelect" class="input">
@@ -502,25 +607,124 @@ function openAssignModal(requestId) {
                 ${availableWorkers
                   .map(
                     (w) => `
-                    <option value="${w.id}">${w.name} (${w.total_completed} вып.)</option>
+                    <option value="${w.id}">${w.name}</option>
                 `,
                   )
                   .join("")}
             </select>
         </div>
-        
+
         <div class="form-group">
             <label for="deadline">Дедлайн</label>
             <input type="date" id="deadline" class="input" value="${getDefaultDeadline()}">
         </div>
-        
+
         <div style="display: flex; gap: 12px; margin-top: 24px;">
             <button onclick="assignWorker(${requestId || 1001})" class="btn btn-primary" style="flex: 1;">Назначить</button>
             <button onclick="closeAssignModal()" class="btn btn-outline" style="flex: 1;">Отмена</button>
         </div>
     `;
+  } catch (error) {
+    console.error("Error loading workers:", error);
+    
+    // В случае ошибки, используем резервный вариант с данными из таблицы исполнителей
+    try {
+      // Попробуем использовать данные из уже загруженного workersData
+      const availableWorkers = workersData && Array.isArray(workersData) ? 
+        workersData.map(w => ({ id: w.id, name: w.name })) : 
+        [];
+      
+      if (availableWorkers.length > 0) {
+        content.innerHTML = `
+            <div style="margin-bottom: 20px;">
+                <p><strong>Заявка #${requestId || "1001"}</strong></p>
+                <p style="color: var(--gray-500); font-size: 0.875rem; margin-top: 4px;">
+                    Выберите исполнителя для назначения
+                </p>
+            </div>
 
-  modal.style.display = "flex";
+            <div class="form-group">
+                <label for="workerSelect">Исполнитель</label>
+                <select id="workerSelect" class="input">
+                    <option value="">Выберите исполнителя</option>
+                    ${availableWorkers
+                      .map(
+                        (w) => `
+                        <option value="${w.id}">${w.name}</option>
+                    `,
+                      )
+                      .join("")}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="deadline">Дедлайн</label>
+                <input type="date" id="deadline" class="input" value="${getDefaultDeadline()}">
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-top: 24px;">
+                <button onclick="assignWorker(${requestId || 1001})" class="btn btn-primary" style="flex: 1;">Назначить</button>
+                <button onclick="closeAssignModal()" class="btn btn-outline" style="flex: 1;">Отмена</button>
+            </div>
+        `;
+      } else {
+        // Если нет данных, покажем сообщение об ошибке
+        content.innerHTML = `
+            <div style="margin-bottom: 20px;">
+                <p><strong>Заявка #${requestId || "1001"}</strong></p>
+                <p style="color: var(--danger); font-size: 0.875rem; margin-top: 4px;">
+                    Не удалось загрузить список исполнителей
+                </p>
+            </div>
+            
+            <div class="form-group">
+                <label for="workerSelect">Исполнитель</label>
+                <select id="workerSelect" class="input" disabled>
+                    <option value="">Нет доступных исполнителей</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="deadline">Дедлайн</label>
+                <input type="date" id="deadline" class="input" value="${getDefaultDeadline()}" disabled>
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-top: 24px;">
+                <button class="btn btn-primary" style="flex: 1;" disabled>Назначить</button>
+                <button onclick="closeAssignModal()" class="btn btn-outline" style="flex: 1;">Отмена</button>
+            </div>
+        `;
+      }
+    } catch (fallbackError) {
+      console.error("Fallback error:", fallbackError);
+      // Финальный резервный вариант
+      content.innerHTML = `
+          <div style="margin-bottom: 20px;">
+              <p><strong>Заявка #${requestId || "1001"}</strong></p>
+              <p style="color: var(--danger); font-size: 0.875rem; margin-top: 4px;">
+                  Ошибка загрузки списка исполнителей
+              </p>
+          </div>
+          
+          <div class="form-group">
+              <label for="workerSelect">Исполнитель</label>
+              <select id="workerSelect" class="input">
+                  <option value="">Выберите исполнителя</option>
+              </select>
+          </div>
+
+          <div class="form-group">
+              <label for="deadline">Дедлайн</label>
+              <input type="date" id="deadline" class="input" value="${getDefaultDeadline()}">
+          </div>
+
+          <div style="display: flex; gap: 12px; margin-top: 24px;">
+              <button onclick="assignWorker(${requestId || 1001})" class="btn btn-primary" style="flex: 1;">Назначить</button>
+              <button onclick="closeAssignModal()" class="btn btn-outline" style="flex: 1;">Отмена</button>
+          </div>
+      `;
+    }
+  }
 }
 
 /**
@@ -537,15 +741,33 @@ function closeAssignModal() {
 async function assignWorker(requestId) {
   const workerSelect = document.getElementById("workerSelect");
   const workerId = workerSelect.value;
-  const deadline = document.getElementById("deadline").value;
+  const deadlineInput = document.getElementById("deadline");
+  let deadline = deadlineInput.value;
 
   if (!workerId) {
     alert("Выберите исполнителя");
     return;
   }
 
+  // Ensure deadline is properly formatted or null if not provided
+  if (!deadline) {
+    deadline = null; // Send null instead of undefined/empty string
+  }
+
   try {
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    const response = await fetch(`/api/requests/${requestId}/assign`, {
+      method: 'PATCH',
+      headers: {
+        ...getAuthHeaders(), // Use spread operator to avoid overriding Content-Type
+        'Content-Type': 'application/json' // Ensure correct content type for JSON
+      },
+      body: JSON.stringify({ workerId, deadline })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Ошибка при назначении исполнителя');
+    }
 
     alert(`✅ Исполнитель назначен на заявку #${requestId}`);
     closeAssignModal();
@@ -554,7 +776,7 @@ async function assignWorker(requestId) {
     loadRequests();
   } catch (error) {
     console.error("Error assigning worker:", error);
-    alert("❌ Ошибка при назначении исполнителя");
+    alert(`❌ Ошибка при назначении исполнителя: ${error.message}`);
   }
 }
 
@@ -709,11 +931,14 @@ function applyRequestFilters() {
  * Показать модальное окно выбора заявки для назначения исполнителя
  */
 function showRequestSelectionModal() {
+  // Фильтруем заявки, которые можно назначить (статус pending или assigned)
+  const assignableRequests = requestsData.filter(req => req.status === 'pending' || req.status === 'assigned');
+
   // Создаем модальное окно для выбора заявки
-  const modla = document.createElement('div');
-  modla.className = 'modal-overlay';
-  modla.id = 'requestSelectionModal';
-  modla.style.cssText = `
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'requestSelectionModal';
+  modal.style.cssText = `
     position: fixed;
     top: 0;
     left: 0;
@@ -724,11 +949,8 @@ function showRequestSelectionModal() {
     align-items: center;
     justify-content: center;
     z-index: 2000;
-  `;  
-  
-  // Фильтруем заявки, которые можно назначить (статус pending или assigned)
-  const assignableRequests = requestsData.filter(req => req.status === 'pending' || req.status === 'assigned');
-  
+  `;
+
   let requestOptions = '';
   if (assignableRequests.length > 0) {
     requestOptions = assignableRequests.map(req => `
@@ -749,8 +971,8 @@ function showRequestSelectionModal() {
   } else {
     requestOptions = '<div style="padding: 20px; text-align: center; color: #666;">Нет заявок для назначения</div>';
   }
-  
-  modla.innerHTML = `
+
+  modal.innerHTML = `
     <div class="modal-content" style="
       background: white;
       padding: 24px;
@@ -770,9 +992,9 @@ function showRequestSelectionModal() {
       </div>
     </div>
   `;
-  
-  document.body.appendChild(modla);
-  
+
+  document.body.appendChild(modal);
+
   // Добавляем обработчики для выбора заявки
   document.querySelectorAll('.request-option').forEach(option => {
     option.addEventListener('click', function() {
@@ -899,124 +1121,6 @@ function initAnalyticsChart() {
   });
 }
 
-/**
- * Мок-данные для дашборда
- */
-function getMockDashboardData() {
-  return {
-    total_requests: 1247,
-    pending_requests: 45,
-    in_progress: 156,
-    completed_today: 89,
-    overdue: 12,
-    avg_completion_time_hours: 18.5,
-    sla_compliance_rate: 0.87,
-    requests_by_category: {
-      lighting: 234,
-      garbage: 456,
-      pothole: 678,
-      other: 155,
-    },
-    last_7_days: [
-      { date: "12.02", count: 15 },
-      { date: "13.02", count: 22 },
-      { date: "14.02", count: 18 },
-      { date: "15.02", count: 25 },
-      { date: "16.02", count: 30 },
-      { date: "17.02", count: 28 },
-      { date: "18.02", count: 35 },
-    ],
-  };
-}
-
-/**
- * Мок-данные для заявок
- */
-function getMockRequests() {
-  return [
-    {
-      id: 1001,
-      category: "lighting",
-      address: "ул. Ленина, д. 15",
-      status: "pending",
-      priority: "medium",
-      citizen_name: "Иван Петров",
-      worker_name: null,
-      created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: 1002,
-      category: "pothole",
-      address: "ул. Пушкина, д. 10",
-      status: "in_progress",
-      priority: "high",
-      citizen_name: "Мария Соколова",
-      worker_name: "Алексей Смирнов",
-      created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: 1003,
-      category: "garbage",
-      address: "пр. Мира, д. 5",
-      status: "completed",
-      priority: "low",
-      citizen_name: "Сергей Козлов",
-      worker_name: "Иван Петров",
-      created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-  ];
-}
-
-/**
- * Мок-данные для работников
- */
-function getMockWorkers() {
-  return [
-    {
-      id: 5,
-      name: "Иван Петров",
-      avatar: "👨‍🔧",
-      total_assigned: 150,
-      total_completed: 142,
-      completion_rate: 94.7,
-      avg_time: 16.2,
-      rating: 4.8,
-    },
-    {
-      id: 6,
-      name: "Алексей Смирнов",
-      avatar: "👷",
-      total_assigned: 110,
-      total_completed: 98,
-      completion_rate: 89.1,
-      avg_time: 18.5,
-      rating: 4.5,
-    },
-    {
-      id: 7,
-      name: "Сергей Иванов",
-      avatar: "👩‍🔧",
-      total_assigned: 220,
-      total_completed: 210,
-      completion_rate: 95.5,
-      avg_time: 14.3,
-      rating: 4.9,
-    },
-  ];
-}
-
-/**
- * Мок-данные для горячих точек
- */
-function getMockHotspots() {
-  return [
-    { lat: 51.18, lng: 71.45, count: 15, category: "pothole" },
-    { lat: 51.19, lng: 71.46, count: 8, category: "lighting" },
-    { lat: 51.17, lng: 71.44, count: 12, category: "garbage" },
-    { lat: 51.2, lng: 71.47, count: 5, category: "other" },
-    { lat: 51.16, lng: 71.43, count: 10, category: "lighting" },
-  ];
-}
 
 /**
  * Получить иконку категории

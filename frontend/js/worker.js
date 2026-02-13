@@ -96,24 +96,31 @@ async function loadTasks(statusFilter = "assigned,in_progress") {
     '<div class="text-center" style="padding: 24px;">⏳ Загрузка задач...</div>';
 
   try {
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    // Запрос к API для получения задач
+    const response = await fetch('/api/requests', {
+      headers: getAuthHeaders()
+    });
 
-    const user = getCurrentUser();
-    if (!user) return;
-
-    // Мок-данные для демонстрации
-    currentTasks = getMockWorkerTasks(user.id);
-
-    // Фильтрация по статусу
-    let filtered = currentTasks;
-    if (statusFilter !== "all") {
-      const statuses = statusFilter.split(",");
-      filtered = currentTasks.filter((task) => statuses.includes(task.status));
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    renderTaskList(filtered);
-    addTaskMarkers(filtered);
+    const allTasks = await response.json();
     
+    // Фильтрация по статусу
+    let filtered = allTasks;
+    if (statusFilter !== "all") {
+      const statuses = statusFilter.split(",");
+      filtered = allTasks.filter((task) => statuses.includes(task.status));
+    }
+
+    // Фильтрация только задач, назначенных текущему исполнителю
+    const currentUser = getCurrentUser();
+    currentTasks = filtered.filter(task => task.assigned_worker_id === currentUser.id);
+
+    renderTaskList(currentTasks);
+    addTaskMarkers(currentTasks);
+
     // Обновляем статистику исполнителя
     updateWorkerStats();
   } catch (error) {
@@ -269,8 +276,30 @@ async function showTaskDetail(taskId) {
   try {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
-    const task = currentTasks.find((t) => t.id === taskId);
-    if (!task) throw new Error("Task not found");
+    let task = currentTasks.find((t) => t.id === taskId);
+    // If task is not in the current filtered list, fetch it directly from the API
+    if (!task) {
+      try {
+        const response = await fetch(`/api/requests/${taskId}`, {
+          headers: getAuthHeaders()
+        });
+        
+        if (!response.ok) {
+          throw new Error("Could not load task details");
+        }
+        
+        task = await response.json();
+        
+        // Verify that the current user is assigned to this task
+        const currentUser = getCurrentUser();
+        if (task.assigned_worker_id !== currentUser.id) {
+          throw new Error("This task is not assigned to you");
+        }
+      } catch (error) {
+        console.error("Error fetching task details:", error);
+        throw new Error("Task not found or not assigned to you");
+      }
+    }
 
     currentTaskDetail = task;
 
@@ -310,8 +339,8 @@ async function showTaskDetail(taskId) {
                         </div>
                     </div>
                 </div>
-                
-                
+
+
                 <div style="margin-bottom: 24px;">
                     <h4 style="font-size: 0.875rem; color: var(--gray-500); margin-bottom: 16px;">📸 ФОТООТЧЁТ</h4>
                     <div class="photo-report">
@@ -343,18 +372,30 @@ async function showTaskDetail(taskId) {
                         </div>
                     </div>
                 </div>
-                
+
                 <div style="margin-bottom: 24px;">
                     <h4 style="font-size: 0.875rem; color: var(--gray-500); margin-bottom: 8px;">📝 ЗАМЕТКИ</h4>
                     <textarea id="workNotes" class="notes-input" placeholder="Добавьте заметки о выполненной работе..."></textarea>
                 </div>
             `;
-    } else {
+    } else if (task.status === "assigned") {
       // Задача назначена, но не начата — показываем кнопку старта
       html += `
                 <button onclick="startWork(${task.id})" class="btn btn-success btn-large" style="width: 100%; margin-top: 16px;">
                     ▶ Начать работу
                 </button>
+            `;
+    } else {
+      // Для других статусов (например, completed) показываем информацию
+      html += `
+                <div class="status-info">
+                    <p>Статус задачи: <strong>${getStatusText(task.status)}</strong></p>
+                    ${
+                      task.status === "completed" 
+                        ? '<p>Задача уже выполнена и находится на проверке у гражданина.</p>' 
+                        : `<p>Задача находится в статусе "${getStatusText(task.status)}".</p>`
+                    }
+                </div>
             `;
     }
 
@@ -394,9 +435,52 @@ async function showTaskDetail(taskId) {
  */
 async function startWork(taskId) {
   try {
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    // Получаем актуальные данные задачи с сервера перед изменением статуса
+    const responseCurrent = await fetch(`/api/requests/${taskId}`, {
+      headers: getAuthHeaders()
+    });
+    
+    if (!responseCurrent.ok) {
+      throw new Error("Не удалось получить актуальные данные задачи");
+    }
+    
+    const currentTask = await responseCurrent.json();
+    
+    // Проверяем, что задача действительно назначена этому работнику
+    const currentUser = getCurrentUser();
+    if (currentTask.assigned_worker_id !== currentUser.id) {
+      throw new Error("Эта задача не назначена вам");
+    }
+    
+    // Проверяем, можно ли начать работу над задачей с текущим статусом
+    if (currentTask.status !== "assigned") {
+      throw new Error(`Невозможно начать работу над задачей со статусом "${getStatusText(currentTask.status)}"`);
+    }
 
-    // Обновляем статус задачи
+    // Отправляем запрос на сервер для изменения статуса
+    const response = await fetch(`/api/requests/${taskId}/status`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ status: 'in_progress' })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text(); // Use text() first to see raw response
+      let errorMessage = 'Ошибка при начале работы';
+      
+      try {
+        // Try to parse as JSON if possible
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.message || errorData.error?.message || errorMessage;
+      } catch (e) {
+        // If not JSON, use the raw text or default message
+        errorMessage = errorText || errorMessage;
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    // Обновляем статус задачи в локальном массиве
     const task = currentTasks.find((t) => t.id === taskId);
     if (task) {
       task.status = "in_progress";
@@ -405,15 +489,17 @@ async function startWork(taskId) {
     // Перезагружаем список задач
     loadTasks(document.getElementById("taskStatusFilter").value);
 
-    // Показываем детали с таймером
-    await showTaskDetail(taskId);
+    // После перезагрузки задач, снова ищем задачу в обновленном списке
+    // и показываем детали с таймером
+    setTimeout(async () => {
+      await showTaskDetail(taskId);
+    }, 300); // Небольшая задержка для обновления UI
 
     alert("✅ Работа начата!");
   } catch (error) {
     console.error("Error starting work:", error);
-    alert("❌ Ошибка при начале работы");
+    alert(`❌ Ошибка при начале работы: ${error.message}`);
   }
-}
 }
 
 /**
@@ -431,9 +517,19 @@ async function completeTask(taskId) {
   const notes = document.getElementById("workNotes")?.value || "";
 
   try {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    // Отправляем запрос на сервер для изменения статуса
+    const response = await fetch(`/api/requests/${taskId}/status`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ status: 'completed' })
+    });
 
-    // Обновляем статус задачи
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Ошибка при завершении задачи');
+    }
+
+    // Обновляем статус задачи в локальном массиве
     const task = currentTasks.find((t) => t.id === taskId);
     if (task) {
       task.status = "completed";
@@ -455,7 +551,7 @@ async function completeTask(taskId) {
     alert("✅ Задача успешно завершена!");
   } catch (error) {
     console.error("Error completing task:", error);
-    alert("❌ Ошибка при завершении задачи");
+    alert(`❌ Ошибка при завершении задачи: ${error.message}`);
   }
 }
 
@@ -647,54 +743,6 @@ function updateTimerDisplay() {
   timerElement.textContent = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 }
 
-/**
- * Получить мок-данные задач для работника
- */
-function getMockWorkerTasks(workerId) {
-  return [
-    {
-      id: 1002,
-      worker_id: workerId,
-      category: "pothole",
-      description:
-        "Глубокая яма во дворе, машины задевают дно. Требуется ямочный ремонт.",
-      address: "ул. Пушкина, д. 10",
-      latitude: 51.19,
-      longitude: 71.46,
-      status: "in_progress",
-      priority: "urgent",
-      deadline: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-      photos: [{ url: "https://via.placeholder.com/400x300?text=Яма" }],
-    },
-    {
-      id: 1001,
-      worker_id: workerId,
-      category: "lighting",
-      description: "Не горит фонарь на углу дома, требуется замена лампы.",
-      address: "ул. Ленина, д. 15",
-      latitude: 51.18,
-      longitude: 71.45,
-      status: "assigned",
-      priority: "high",
-      deadline: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString(),
-      photos: [{ url: "https://via.placeholder.com/400x300?text=Фонарь" }],
-    },
-    {
-      id: 1003,
-      worker_id: workerId,
-      category: "garbage",
-      description:
-        "Переполненный мусорный контейнер, требуется внеплановый вывоз.",
-      address: "пр. Мира, д. 5",
-      latitude: 51.17,
-      longitude: 71.44,
-      status: "assigned",
-      priority: "medium",
-      deadline: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-      photos: [{ url: "https://via.placeholder.com/400x300?text=Мусор" }],
-    },
-  ];
-}
 
 /**
  * Получить текст статуса

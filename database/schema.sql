@@ -26,7 +26,11 @@ CREATE TABLE IF NOT EXISTS requests (
     priority VARCHAR(20) DEFAULT 'medium',
     assigned_worker_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    updated_at TIMESTAMP DEFAULT NOW(),
+    assigned_at TIMESTAMP,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    approved_at TIMESTAMP
 );
 
 -- Фотографии

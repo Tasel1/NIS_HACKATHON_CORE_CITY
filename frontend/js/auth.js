@@ -1,46 +1,77 @@
 // ===== AUTH.JS - Полная система аутентификации =====
 
-// Базовый URL API (заглушка, будет заменён при подключении бэкенда)
-const API_BASE_URL = "http://localhost:3000/api";
+// Базовый URL API - using relative path which will be proxied by Vite to backend
+const API_BASE_URL = '';
 
 /**
  * Функция входа в систему
  * @param {string} email - Email пользователя
  * @param {string} password - Пароль
+ */
+async function login(email, password) {
+  try {
+    const response = await fetch(`/api/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Ошибка входа');
+    }
+
+    const data = await response.json();
+    
+    // Сохраняем токен и данные пользователя в localStorage
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("user", JSON.stringify(data.user));
+
+    // Перенаправляем согласно роли пользователя
+    redirectByRole(data.user.role);
+  } catch (error) {
+    console.error("Login error:", error);
+    alert(`Ошибка входа: ${error.message}`);
+  }
+}
+
+/**
+ * Функция регистрации нового пользователя
+ * @param {string} email - Email пользователя
+ * @param {string} password - Пароль
+ * @param {string} full_name - Полное имя
+ * @param {string} phone - Телефон
  * @param {string} role - Роль (citizen/worker/admin)
  */
-function login(email, password, role) {
-  // Имитация запроса к API
-  console.log("Login attempt:", { email, password, role });
+async function register(email, password, full_name, phone, role = 'citizen') {
+  try {
+    const response = await fetch(`/api/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password, full_name, phone, role }),
+    });
 
-  // Создаём фейковый JWT токен (base64 encoded)
-  const payload = {
-    id: role === "citizen" ? 1 : role === "worker" ? 5 : 10,
-    email: email,
-    role: role,
-    exp: Date.now() + 86400000, // 24 часа
-    iat: Date.now(),
-  };
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Ошибка регистрации');
+    }
 
-  // Кодируем в base64 (имитация JWT)
-  const token = btoa(JSON.stringify(payload));
+    const data = await response.json();
+    
+    // Сохраняем токен и данные пользователя в localStorage
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("user", JSON.stringify(data.user));
 
-  // Создаём объект пользователя
-  const user = {
-    id: payload.id,
-    email: email,
-    role: role,
-    full_name: email.split("@")[0] || "Пользователь",
-    phone: "+7 (999) 123-45-67",
-    points: role === "citizen" ? 245 : 0,
-  };
-
-  // Сохраняем в localStorage
-  localStorage.setItem("token", token);
-  localStorage.setItem("user", JSON.stringify(user));
-
-  // Перенаправляем согласно роли
-  redirectByRole(role);
+    // Перенаправляем согласно роли пользователя
+    redirectByRole(data.user.role);
+  } catch (error) {
+    console.error("Registration error:", error);
+    alert(`Ошибка регистрации: ${error.message}`);
+  }
 }
 
 /**
@@ -48,7 +79,7 @@ function login(email, password, role) {
  */
 function logout() {
   localStorage.clear();
-  window.location.href = "login.html";
+  window.location.href = "../login.html";
 }
 
 /**
@@ -99,7 +130,7 @@ function decodeToken() {
  */
 function requireAuth() {
   if (!getToken() || !getCurrentUser()) {
-    window.location.href = "login.html";
+    window.location.href = "../login.html";
     return false;
   }
   return true;
@@ -111,12 +142,12 @@ function requireAuth() {
  */
 function redirectByRole(role) {
   const pages = {
-    citizen: "citizen.html",
-    worker: "worker.html",
-    admin: "admin.html",
+    citizen: "../citizen.html",
+    worker: "../worker.html",
+    admin: "../admin.html",
   };
 
-  window.location.href = pages[role] || "citizen.html";
+  window.location.href = pages[role] || "../citizen.html";
 }
 
 /**
@@ -127,12 +158,13 @@ function getAuthHeaders() {
   const token = getToken();
   return {
     "Content-Type": "application/json",
-    Authorization: token ? `Bearer ${token}` : "",
+    "Authorization": token ? `Bearer ${token}` : "",
   };
 }
 
 // Экспортируем функции в глобальную область
 window.login = login;
+window.register = register;
 window.logout = logout;
 window.getToken = getToken;
 window.getCurrentUser = getCurrentUser;
